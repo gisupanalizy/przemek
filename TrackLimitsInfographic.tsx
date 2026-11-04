@@ -118,15 +118,20 @@ export default function TrackLimitsInfographic() {
           <div className="tl-rule-tag"><ShieldCheck size={20} /><div><strong>ZASADA 4 KÓŁ</strong><span>FIA 2026 · Art. B1.8.6</span></div></div>
         </div>
 
+        <nav className="tl-mobile-nav" aria-label="Sekcje infografiki">
+          <a href={`#${uid}-visualizer`}><Crosshair size={16} /> Bolid i granica</a>
+          <a href={`#${uid}-penalties`}><Flag size={16} /> Zasady kar <ArrowDown size={14} /></a>
+        </nav>
+
         <div className="tl-workspace grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(330px,1fr)]">
-          <section className="tl-visual-panel" aria-labelledby={`${uid}-visual-title`}>
+          <section id={`${uid}-visualizer`} className="tl-visual-panel" aria-labelledby={`${uid}-visual-title`}>
             <div className="tl-panel-heading">
               <h2 id={`${uid}-visual-title`}><Crosshair size={17} /> Na granicy toru</h2>
               <span className="tl-micro">WIDOK Z GÓRY <Maximize2 size={12} /></span>
             </div>
             <div className="tl-diagram">
-              <div className="tl-diagram-meta"><span><i className="tl-dot" /> POZYCJA NA ŻYWO</span><span>SCHEMAT EDUKACYJNY</span></div>
-              <svg viewBox="0 0 800 445" className="tl-track-svg" role="img" aria-labelledby={`${uid}-svg-title ${uid}-svg-desc`}>
+              <div className="tl-diagram-meta"><span><i className="tl-dot" /> POZYCJA NA ŻYWO</span><span>SCHEMAT EDUKACYJNY</span><div className="tl-mobile-direction">KIERUNEK JAZDY <ArrowRight size={15} /></div></div>
+              <svg viewBox="0 0 800 445" preserveAspectRatio="xMidYMid slice" className="tl-track-svg" role="img" aria-labelledby={`${uid}-svg-title ${uid}-svg-desc`}>
                 <title id={`${uid}-svg-title`}>Położenie bolidu względem białej linii</title>
                 <desc id={`${uid}-svg-desc`}>{outside} kół poza torem. {statusTitle}. {statusDetail}. Kierunek jazdy w prawo. Prawa strona bolidu jest na dole schematu.</desc>
                 <defs>
@@ -141,8 +146,8 @@ export default function TrackLimitsInfographic() {
 
                 <rect width="800" height="445" fill="#252530" />
                 <path d="M-50 38 C90 38 135 70 270 85 S600 85 830 85" stroke="#62626e" strokeWidth="1" strokeDasharray="7 10" fill="none" opacity=".5" />
-                <path d="M20 138H164" stroke="#84848e" strokeWidth="1.5" markerEnd={`url(#${uid}-arrow)`} />
-                <text x="20" y="124" fill="#c2c2cc" fontSize="10" letterSpacing="1.5">KIERUNEK JAZDY</text>
+                <path className="tl-track-direction" d="M20 138H164" stroke="#84848e" strokeWidth="1.5" markerEnd={`url(#${uid}-arrow)`} />
+                <text className="tl-track-direction" x="20" y="124" fill="#c2c2cc" fontSize="10" letterSpacing="1.5">KIERUNEK JAZDY</text>
                 <rect y="233" width="800" height="12" fill="#faf9f5" />
                 <rect y="245" width="800" height="69" fill={`url(#${uid}-kerb)`} />
                 <rect y="314" width="800" height="131" fill={`url(#${uid}-runoff)`} />
@@ -191,8 +196,10 @@ export default function TrackLimitsInfographic() {
 
                 {showLens && outside === 3 && (
                   <g className="tl-lens">
-                    <path d={`M${contactX} ${contactY}L609 173`} stroke={color} strokeWidth="1.2" strokeDasharray="4 5" fill="none" />
+                    <path className="tl-lens-connector-desktop" d={`M${contactX} ${contactY}L609 173`} stroke={color} strokeWidth="1.2" strokeDasharray="4 5" fill="none" />
+                    <path className="tl-lens-connector-mobile" d={`M${contactX} ${contactY}L458 173`} stroke={color} strokeWidth="1.2" strokeDasharray="4 5" fill="none" />
                     <circle cx={contactX} cy={contactY} r="8" stroke={color} strokeWidth="1.5" fill="none" />
+                    <g className="tl-lens-bubble">
                     <circle cx="681" cy="119" r="75" fill="#111119" stroke="#50505e" strokeWidth="1" />
                     <g clipPath={`url(#${uid}-lens)`}>
                       <rect x="605" y="44" width="152" height="150" fill="#252530" />
@@ -206,7 +213,8 @@ export default function TrackLimitsInfographic() {
                     </g>
                     <rect x="629" y="190" width="104" height="25" rx="4" fill="#111119" stroke="#50505e" />
                     <text x="681" y="206" textAnchor="middle" fill={color} fontSize="10" fontWeight="700" fontFamily="monospace">{legal ? 'STYK Z LINIĄ' : 'BRAK STYKU'}</text>
-                    <text x="681" y="30" textAnchor="middle" fill="#d0d0da" fontSize="10" letterSpacing="1">POWIĘKSZENIE ×3</text>
+                    <text className="tl-lens-caption" x="681" y="30" textAnchor="middle" fill="#d0d0da" fontSize="10" letterSpacing="1">POWIĘKSZENIE ×3</text>
+                    </g>
                   </g>
                 )}
                 <g transform="translate(697 359)" fill="none" stroke="#91b6a6" strokeWidth="1"><path d="M0 0V42M-6 8L0 0L6 8" /><text x="0" y="58" textAnchor="middle" fill="#c0d8cd" stroke="none" fontSize="9">PRAWA STRONA</text></g>
@@ -216,6 +224,11 @@ export default function TrackLimitsInfographic() {
             </div>
 
             <div className="tl-driving-controls">
+              <div className={`tl-mobile-verdict tl-tone-${tone}`} aria-label="Bieżący werdykt dla wybranej pozycji">
+                {legal ? <CircleCheck size={23} /> : <TriangleAlert size={23} />}
+                <div><strong>{statusTitle}</strong><span>{statusDetail}</span></div>
+                <b>{inside}<small>/4</small></b>
+              </div>
               <div className="tl-control-label"><h3>Wybierz linię jazdy</h3><span>SPRAWDŹ 4 SCENARIUSZE</span></div>
               <div className="tl-scenarios" role="group" aria-label="Scenariusze linii jazdy">
                 {SCENARIOS.map((s, i) => <button type="button" key={s.short} aria-pressed={selectedScenario === i} className={`tl-scenario ${selectedScenario === i ? 'is-selected' : ''}`} onClick={() => setPosition(s.position)}>
@@ -243,7 +256,7 @@ export default function TrackLimitsInfographic() {
               </div>
             </section>
 
-            <section className="tl-penalty-panel" aria-labelledby={`${uid}-penalties-title`}>
+            <section id={`${uid}-penalties`} className="tl-penalty-panel" aria-labelledby={`${uid}-penalties-title`}>
               <div className="tl-panel-heading"><h2 id={`${uid}-penalties-title`}><Flag size={17} /> Co na to sędziowie?</h2><span className="tl-micro">2026</span></div>
               <div className="tl-session-tabs" role="group" aria-label="Rodzaj sesji">
                 {([{ id: 'qualifying', label: 'Kwalifikacje' }, { id: 'race', label: 'Wyścig' }, { id: 'advantage', label: 'Wyprzedzanie' }] as const).map(s => <button type="button" key={s.id} aria-pressed={session === s.id} onClick={() => setSession(s.id)}>{s.label}</button>)}
@@ -319,6 +332,7 @@ const STYLES = `
 .tl{--tl-bg:#0f0f14;--tl-panel:#15151e;--tl-border:#2b2b38;--tl-text:#f3f3f7;--tl-muted:#a5a5b4;--tl-red:#e10600;color:var(--tl-text);font-family:"Titillium Web","Arial Narrow","Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.5;color-scheme:dark;min-width:300px}
 .tl *{box-sizing:border-box}.tl h1,.tl h2,.tl h3,.tl p{margin:0}.tl button,.tl input,.tl a{-webkit-tap-highlight-color:transparent}.tl button,.tl input{font:inherit}.tl button{cursor:pointer}.tl button{color:inherit}.tl a{color:inherit;text-decoration:none}.tl button:focus-visible,.tl a:focus-visible,.tl input:focus-visible,.tl summary:focus-visible{outline:2px solid #f4cf6a;outline-offset:4px}.tl ::selection{background:#e10600;color:#fff}.tl{scrollbar-color:#474755 #15151e}.tl button{transition:background-color .18s,color .18s,border-color .18s}.tl button:disabled{opacity:.45;cursor:not-allowed}.tl button svg{flex-shrink:0}.tl a:hover{color:#fff}.tl a:hover svg{color:#ff6b66}.tl-mobile-zones{display:none}
 .tl-race-rules{padding-bottom:17px;margin-bottom:18px;border-bottom:1px solid #343442}.tl-race-rules h3{font-size:16px;font-weight:700;line-height:1.4;letter-spacing:-.2px}.tl-race-rules p{font-size:11px;line-height:1.7;color:#b8b8c7;margin-top:7px}.tl-race-rules ol{list-style:none;margin:13px 0;padding:0;display:grid;gap:7px}.tl-race-rules li{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;align-items:baseline;font-size:11px;color:#dedee8;line-height:1.5}.tl-race-rules li>span:first-child{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#bebecd}.tl-race-rules .tl-rule-warning>span{color:#f4cf6a}.tl-race-rules .tl-rule-penalty>span{color:#ff858a}.tl-race-rules .tl-rules-example{font-size:10px;color:#c5c5d3}.tl-race-rules>a{display:flex;align-items:center;gap:6px;width:fit-content;font-size:9px;color:#bcbccc;margin-top:9px;text-decoration:underline;text-underline-offset:3px}
+.tl-mobile-nav,.tl-mobile-verdict,.tl-lens-connector-mobile,.tl-mobile-direction{display:none}.tl-visual-panel,.tl-penalty-panel{scroll-margin-top:18px}
 .tl-topbar{border-bottom:1px solid var(--tl-border);background:#111118}.tl-topbar-inner{max-width:1392px;margin:auto;min-height:66px;padding:0 40px;display:flex;align-items:center;justify-content:space-between;gap:20px}.tl-brand{display:flex;align-items:center;gap:13px}.tl-brand strong{font-weight:900;font-size:21px;font-style:italic;letter-spacing:-.7px}.tl-brand strong span{font-size:12px;font-weight:600;font-style:normal;letter-spacing:1.8px;margin-left:12px;color:#bdbdc9}.tl-speedmark{display:flex;align-items:center;gap:4px;transform:skew(-28deg);height:23px}.tl-speedmark i{width:6px;height:23px;background:#e10600}.tl-speedmark i:first-child{width:20px}.tl-topbar-right{display:flex;gap:25px;align-items:center;font-size:12px;color:#a5a5b4}.tl-topbar-right a{display:flex;align-items:center;gap:8px}.tl-season{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:1px}.tl-season b{font-weight:600;color:#f1f1f6;margin-left:5px;border:1px solid #343440;padding:4px 6px;border-radius:3px}
 .tl-main{max-width:1392px;margin:auto;padding:42px 40px 24px}.tl-intro{display:flex;align-items:center;justify-content:space-between;gap:30px;margin-bottom:35px}.tl h1{font-size:clamp(35px,4.1vw,56px);font-weight:850;font-style:italic;line-height:1.08;letter-spacing:-1.8px;text-wrap:balance}.tl h1 span{position:relative;white-space:nowrap}.tl h1 span:after{content:"";position:absolute;width:52px;height:4px;background:#e10600;right:5px;bottom:-10px;transform:skew(-25deg)}.tl-intro p{color:#a5a5b4;font-size:14px;margin-top:22px;line-height:1.7}.tl-rule-tag{display:flex;align-items:center;gap:14px;border:1px solid #343440;border-radius:7px;padding:14px 20px;color:#c7c7d2}.tl-rule-tag svg{color:#e10600}.tl-rule-tag strong{font-size:11px;letter-spacing:1.5px;display:block;color:#e7e7ee}.tl-rule-tag span{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;display:block;color:#a5a5b4;margin-top:5px}
 .tl-workspace{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(340px,1fr);gap:24px;align-items:start}.tl-visual-panel,.tl-status-panel,.tl-penalty-panel{background:var(--tl-panel);border:1px solid var(--tl-border);border-radius:12px;overflow:hidden}.tl-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:17px 21px;border-bottom:1px solid var(--tl-border)}.tl h2{font-size:14px;font-weight:650;letter-spacing:.1px}.tl-panel-heading h2{display:flex;gap:9px;align-items:center}.tl-panel-heading h2 svg{color:#b3b3c1}.tl-micro{display:flex;align-items:center;gap:8px;color:#a4a4b3;font:9px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.8px;white-space:nowrap}.tl-simulation{font:8px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:1px;color:#a5a5b4;display:flex;gap:5px;align-items:center}.tl-simulation i{width:4px;height:4px;background:#a5a5b4;border-radius:50%}
@@ -334,4 +348,65 @@ const STYLES = `
 @media(max-width:600px){.tl-topbar-inner{padding:0 18px;min-height:57px}.tl-brand strong{font-size:19px}.tl-brand strong span{font-size:9px;margin-left:7px;letter-spacing:1px}.tl-brand{gap:9px}.tl-speedmark{height:19px;gap:3px}.tl-speedmark i{height:19px;width:4px}.tl-speedmark i:first-child{width:16px}.tl-topbar-right{gap:0}.tl-topbar-right>a{display:none}.tl-season{font-size:8px}.tl-season b{padding:4px}.tl-main{padding:30px 14px 22px}.tl-intro{display:block;margin:0 4px 24px}.tl h1{font-size:39px;letter-spacing:-1.5px}.tl-intro p{font-size:12px;margin-top:20px;line-height:1.75;max-width:43ch}.tl-rule-tag{border:0;background:none;padding:0;margin-top:19px;gap:8px}.tl-rule-tag>div{display:flex;align-items:center;gap:10px}.tl-rule-tag strong{font-size:8px;letter-spacing:1px}.tl-rule-tag span{font-size:8px;margin:0}.tl-rule-tag svg{width:15px;height:17px}.tl-workspace{gap:16px}.tl-panel-heading{padding:15px}.tl-panel-heading h2{font-size:12px;gap:7px}.tl-micro{font-size:8px;letter-spacing:.2px;gap:5px}.tl-panel-heading h2 svg{width:15px;height:15px}.tl-diagram-meta{top:13px;left:12px;right:12px;font-size:6px;letter-spacing:.5px}.tl-track-svg{padding-top:12px}.tl-diagram-footer{gap:12px;padding:10px 12px;font-size:8px}.tl-diagram-footer button{font-size:8px;gap:4px}.tl-diagram-footer button svg{width:11px}.tl-driving-controls{padding:18px 14px 15px}.tl-control-label h3{font-size:11px}.tl-control-label>span{font-size:6px}.tl-scenarios{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tl-scenario{padding:10px 12px}.tl-scenario-top{height:23px;margin-bottom:4px}.tl-scenario strong{font-size:12px}.tl-scenario>span:last-child{font-size:10px}.tl-scenario-top>svg:first-of-type{margin-right:5px}.tl-range-label label{font-size:10px}.tl-range-label{margin-top:20px}.tl-scenario-note{font-size:10px;min-height:34px;margin-top:15px!important}.tl-sidebar{display:flex;gap:16px}.tl-status-panel .tl-panel-heading{padding:15px}.tl-status-panel h2{font-size:12px}.tl-simulation{font-size:8px}.tl-verdict{padding:20px 17px}.tl-verdict h3{font-size:17px}.tl-verdict p{font-size:11px}.tl-wheel-telemetry{padding:16px}.tl-wheels{gap:10px}.tl-wheels>div>span:last-child{font-size:8px}.tl-wheel-chip{padding:8px}.tl-session-tabs{margin:17px 15px 0}.tl-session-content{padding:17px 16px}.tl-strikes{gap:8px}.tl-strikes button{padding:12px 2px 10px}.tl-strikes small{font-size:8px}.tl-session-tabs button{font-size:11px}.tl-penalty-total{padding-top:13px}.tl-race-message-title strong{font-size:17px}.tl-principle{margin-top:23px;gap:17px;padding:24px 3px;align-items:flex-start}.tl-principle-number{min-width:42px;font-size:47px}.tl-principle-number span{font-size:7px;letter-spacing:1px}.tl-principle h2{font-size:15px;line-height:1.4;margin-bottom:8px}.tl-principle p{font-size:11px;line-height:1.8}.tl-principle-icon{display:none}.tl-details-body{grid-template-columns:1fr;gap:13px}.tl-footer{display:block;font-size:9px;padding-top:19px}.tl-footer>div{gap:12px 17px}.tl-footer button{margin-top:20px;font-size:10px}.tl-disclaimer{font-size:8px!important}.tl-desktop-break{display:none}}
 @media(prefers-reduced-motion:reduce){.tl *,.tl *:before,.tl *:after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 @media(max-width:600px){.tl-sidebar{align-items:stretch}.tl-mobile-zones{display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;background:#1b2222;padding:13px 14px;font-size:10px;color:#dedee8}.tl-mobile-zones>span{display:flex;align-items:center;gap:6px}.tl-mobile-zones i{width:6px;height:6px;border-radius:1px}.tl-mobile-zones b{margin-left:auto;font:6px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.3px;color:#c3c3ce}}
+
+/* Mobile is a reading and touch layout, not a scaled desktop dashboard. */
+@media(max-width:767px),(max-width:950px) and (pointer:coarse){
+  .tl{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:16px;min-width:0}
+  .tl-main{padding:25px max(14px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+  .tl-topbar-inner{padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right))}
+  .tl-brand{min-height:44px}.tl-brand strong,.tl h1{font-family:"Arial Narrow","Segoe UI",Arial,sans-serif}
+  .tl-intro{display:block;margin:0 2px 20px}.tl h1{font-size:clamp(31px,8.6vw,46px);letter-spacing:-1.2px;line-height:1.12}
+  .tl-intro p{font-size:16px;line-height:1.6;margin-top:20px;color:#bcbcc9}.tl-rule-tag{padding:0;border:0;margin-top:16px;gap:8px}
+  .tl-rule-tag>div{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}.tl-rule-tag strong{font-size:10px;letter-spacing:.8px}.tl-rule-tag span{font-size:10px;margin:0}
+  .tl-mobile-nav{display:flex;gap:10px;margin:0 0 18px}.tl-mobile-nav a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:46px;flex:1;padding:10px 8px;border:1px solid #3c3c4b;border-radius:6px;background:#191923;font-size:13px;font-weight:600}
+  .tl-workspace{grid-template-columns:1fr;gap:18px}.tl-sidebar{display:flex;align-items:stretch;gap:18px;min-width:0}
+  .tl-panel-heading,.tl-status-panel .tl-panel-heading{padding:16px}.tl-panel-heading h2,.tl-status-panel h2{font-size:16px;gap:8px}.tl-panel-heading h2 svg{width:17px;height:17px}
+  .tl-micro{font-size:9px;letter-spacing:0}.tl-micro svg{display:none}.tl-simulation{font-size:9px;letter-spacing:.5px}
+  .tl-diagram-meta{font-size:9px;top:16px;left:16px;right:16px;letter-spacing:.5px}.tl-diagram-meta>span:nth-child(2){display:none}.tl-mobile-direction{display:flex;align-items:center;gap:6px}
+  .tl-diagram-footer{padding:3px 14px;gap:12px;font-size:11px;flex-wrap:wrap}.tl-diagram-footer>span{min-height:30px;gap:5px}.tl-diagram-footer button{min-height:44px;min-width:65px;justify-content:flex-end;font-size:12px;gap:5px}.tl-diagram-footer button svg{width:14px}
+  .tl-driving-controls{padding:16px}.tl-mobile-verdict{display:flex;align-items:center;gap:10px;padding:14px 12px;margin-bottom:20px;background:var(--tl-tone-ground);border:1px solid var(--tl-tone-border);border-radius:6px;color:var(--tl-tone)}
+  .tl-mobile-verdict>svg{flex-shrink:0}.tl-mobile-verdict>div{min-width:0}.tl-mobile-verdict strong{display:block;font-size:13px;line-height:1.4}.tl-mobile-verdict>div>span{display:block;color:#d1d1dc;font-size:12px;line-height:1.5;margin-top:4px}
+  .tl-mobile-verdict>b{font:600 21px ui-monospace,SFMono-Regular,Consolas,monospace;margin-left:auto;white-space:nowrap}.tl-mobile-verdict small{font-size:11px;padding-left:2px}
+  .tl-control-label{margin-bottom:12px}.tl-control-label h3{font-size:15px}.tl-control-label>span{display:none}
+  .tl-scenarios{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tl-scenario{padding:10px 11px;min-height:106px}
+  .tl-scenario-top{height:22px;margin-bottom:8px}.tl-scenario-top svg{width:47px}.tl-scenario-number{font-size:11px}.tl-scenario strong{font-size:14px;line-height:1.3;white-space:normal;min-height:36px}
+  .tl-scenario>span:last-child{font-size:12px;white-space:normal;line-height:1.5;margin-top:2px}.tl-scenario.is-selected{border-color:#ff5f59}.tl-scenario:active,.tl-mobile-nav a:active{background:#36303a}
+  .tl-range-label{margin-top:22px;margin-bottom:2px;gap:14px}.tl-range-label label{font-size:14px;line-height:1.5}.tl-range-label output{font-size:21px}.tl-range-label output small{font-size:13px}
+  .tl-position-range{height:44px;background-size:100% 6px;background-repeat:no-repeat;background-position:center;margin:0;touch-action:pan-y}
+  .tl-position-range::-webkit-slider-thumb{width:28px;height:28px;border-width:5px}.tl-position-range::-moz-range-thumb{width:18px;height:18px;border-width:5px}
+  .tl-range-ends{font-size:10px;letter-spacing:.6px}.tl-scenario-note{font-size:14px;line-height:1.65;min-height:0;margin-top:18px!important;gap:9px}.tl-scenario-note svg{width:16px;height:16px;margin-top:4px}
+  .tl-verdict{padding:20px 17px;gap:12px}.tl-verdict h3{font-size:18px;line-height:1.4}.tl-verdict p{font-size:14px;line-height:1.6}.tl-message-id{font-size:10px;letter-spacing:.35px}
+  .tl-wheel-telemetry{padding:17px}.tl-telemetry-title{font-size:10px;letter-spacing:.4px}.tl-telemetry-title b{font-size:20px}.tl-telemetry-title b span{font-size:13px}
+  .tl-wheels{gap:8px}.tl-wheel-chip{font-size:13px;min-height:37px;padding:8px 3px;gap:5px}.tl-wheels>div>span:last-child{font-size:10px;line-height:1.4}
+  .tl-session-tabs{margin:16px 14px 0;gap:2px;padding:4px}.tl-session-tabs button{min-height:46px;padding:8px 3px;font-size:12px}
+  .tl-session-content{padding:18px 16px}.tl-session-explainer{font-size:15px;line-height:1.65;margin-bottom:18px!important}
+  .tl-race-rules h3{font-size:20px;line-height:1.4}.tl-race-rules p{font-size:14px;line-height:1.7;margin-top:10px}.tl-race-rules ol{gap:13px;margin:18px 0}
+  .tl-race-rules li{grid-template-columns:75px minmax(0,1fr);gap:10px;font-size:14px;line-height:1.6}.tl-race-rules li>span:first-child{font-size:12px;line-height:1.6}
+  .tl-race-rules .tl-rules-example{font-size:13px;line-height:1.7}.tl-race-rules>a{min-height:44px;font-size:12px;line-height:1.6;margin-top:6px}
+  .tl-strikes{gap:7px;margin-bottom:18px}.tl-strikes button{padding:12px 2px;min-height:70px;gap:8px}.tl-strikes button>span{font-size:23px}.tl-strikes small{font-size:8px;letter-spacing:0}
+  .tl-race-message,.tl-qualifying-message,.tl-advantage-message{padding:16px}.tl-race-message-title{margin:18px 0 12px;gap:9px}.tl-race-message-title strong{font-size:18px;line-height:1.4;overflow-wrap:anywhere}
+  .tl-race-message p,.tl-qualifying-message p,.tl-advantage-message p{font-size:14px;line-height:1.75}.tl-penalty-total{gap:12px;margin-top:17px;padding-top:15px}.tl-penalty-total>span{font-size:10px;letter-spacing:.3px;line-height:1.6}.tl-penalty-total b{font-size:28px}
+  .tl-counter-actions{gap:10px;margin-top:16px}.tl-add-button{min-height:48px;font-size:14px!important;padding:11px 8px;gap:7px}.tl-icon-button{min-width:48px;width:48px;min-height:48px}
+  .tl-panel-footnote{font-size:13px;line-height:1.75;margin-top:17px!important}.tl-simulator-note{font-size:12px;line-height:1.7;gap:8px;margin-top:17px;padding-top:16px}.tl-simulator-note svg{width:15px;height:15px;margin-top:3px}
+  .tl-qualifying-message h3{font-size:22px;line-height:1.4}.tl-checkbox-row{min-height:48px;font-size:14px;line-height:1.6;gap:12px;margin-top:8px}.tl-checkbox-row input{width:20px;height:20px}
+  .tl-deleted-lap{flex-wrap:wrap;gap:8px}.tl-deleted-lap>span{font-size:9px}.tl-deleted-lap s{font-size:18px}.tl-next-lap,.tl-advantage-guide{font-size:13px;line-height:1.7}
+  .tl-principle{padding:24px 2px;gap:16px}.tl-principle h2{font-size:19px;line-height:1.45}.tl-principle p{font-size:15px;line-height:1.75}.tl-principle-number{min-width:40px;font-size:46px}.tl-principle-number span{font-size:8px;letter-spacing:.5px}.tl-principle-icon{display:none}
+  .tl-regulatory-notes summary{min-height:56px;font-size:14px;gap:12px;padding:15px 2px}.tl-details-body{grid-template-columns:1fr;gap:16px;padding:0 2px 20px}.tl-details-body p{font-size:14px;line-height:1.75}
+  .tl-footer{display:block;padding:20px 2px 10px}.tl-footer-label{font-size:10px;flex-basis:100%}.tl-footer>div{gap:2px 16px}.tl-footer a{min-height:44px;font-size:12px;line-height:1.6}.tl-footer button{min-height:44px;margin-top:12px;font-size:13px;padding:0 4px}.tl-disclaimer{font-size:11px!important;line-height:1.8!important;padding:0 2px}
+}
+@media(max-width:600px){
+  .tl-track-svg{height:clamp(300px,85vw,365px);padding-top:0;width:100%}
+  .tl-svg-label,.tl-lens-connector-desktop,.tl-lens-caption,.tl-track-direction{display:none}
+  .tl-lens-connector-mobile{display:block}.tl-lens-bubble{transform:translateX(-151px)}
+  .tl-lens-bubble text{font-size:14px}
+  .tl-mobile-zones{gap:12px 16px;padding:15px 14px;font-size:12px;line-height:1.5}.tl-mobile-zones b{font-size:8px;letter-spacing:0}.tl-mobile-zones i{width:7px;height:7px}
+}
+@media(max-width:359px){
+  .tl-panel-heading,.tl-status-panel .tl-panel-heading{padding:14px 12px}.tl-panel-heading h2,.tl-status-panel h2{font-size:14px}.tl-micro,.tl-simulation{font-size:8px}
+  .tl-driving-controls,.tl-session-content{padding:15px 12px}.tl-scenario{padding:10px 8px}.tl-scenario strong{font-size:13px}.tl-scenario>span:last-child{font-size:11px}
+  .tl-mobile-verdict{padding:12px 9px;gap:8px}.tl-mobile-verdict strong{font-size:12px}.tl-mobile-verdict>div>span{font-size:11px}.tl-mobile-verdict>b{font-size:18px}.tl-mobile-verdict>svg{width:20px}
+  .tl-mobile-zones{gap:12px;padding:14px 12px;font-size:11px}.tl-mobile-zones b{font-size:7px}
+  .tl-session-tabs{margin-left:10px;margin-right:10px}.tl-session-tabs button{font-size:11px}.tl-race-rules li{grid-template-columns:66px minmax(0,1fr);gap:8px;font-size:13px}.tl-race-rules li>span:first-child{font-size:11px}
+  .tl-race-message,.tl-qualifying-message,.tl-advantage-message{padding:13px}.tl-race-message-title strong{font-size:16px}.tl-strikes{gap:5px}.tl-strikes small{font-size:7px}.tl-add-button{font-size:12px!important}
+}
 `;
