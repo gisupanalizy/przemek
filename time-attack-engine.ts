@@ -1,3 +1,4 @@
+import { loopAllTyresOutside, observeTrackLimits, penaltyForOffences } from './track-limits.ts';
 import { BARRIER, CAR_HALF, CHECKPOINTS, curvatureAt, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, TRACK_VERSION } from './time-attack-track.ts';
 
 export const ATTACK_STEP = 1 / 120;
@@ -7,22 +8,27 @@ export const MEDALS = { gold: REFERENCE_TIME * 1.05, silver: REFERENCE_TIME * 1.
 export function medalFor(time: number): 'gold' | 'silver' | 'bronze' | null {
   return time <= MEDALS.gold ? 'gold' : time <= MEDALS.silver ? 'silver' : time <= MEDALS.bronze ? 'bronze' : null;
 }
-export const ATTACK_RECORD_KEY = 'f1-w-punkt:time-attack:loop-record:v1';
+export const ATTACK_RECORD_KEY = 'f1-w-punkt:time-attack:loop-record:v2';
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export type AttackInput = { steer: number; brake: boolean };
 export type GhostFrame = { t: number; s: number; x: number; heading: number };
 export type AttackRace = {
-  time: number; s: number; x: number; heading: number; speed: number; steering: number;
+  time: number; s: number; x: number; heading: number; speed: number; groundSpeed: number; steering: number;
   braking: boolean; offroad: boolean; understeer: boolean; finished: boolean;
   checkpoint: number; sectors: number[]; hits: number; hitCooldown: number;
   event: string; eventUntil: number; trace: GhostFrame[]; samplePeriod: number;
+  offences: number; penalty: number; outside: boolean;
 };
-export type AttackRecord = { version: number; track: string; time: number; sectors: number[]; trace: GhostFrame[] };
+export type AttackRecord = {
+  version: number; track: string; drivingTime: number; result: number;
+  penalty: number; offences: number; sectors: number[]; trace: GhostFrame[];
+};
 
 export function createAttack(): AttackRace {
-  return { time: 0, s: 0, x: 0, heading: 0, speed: 18, steering: 0, braking: false,
+  return { time: 0, s: 0, x: 0, heading: 0, speed: 18, groundSpeed: 0, steering: 0, braking: false,
     offroad: false, understeer: false, finished: false, checkpoint: 0, sectors: [], hits: 0,
-    hitCooldown: 0, event: '', eventUntil: 0, trace: [{ t: 0, s: 0, x: 0, heading: 0 }], samplePeriod: 0.05 };
+    hitCooldown: 0, event: '', eventUntil: 0, trace: [{ t: 0, s: 0, x: 0, heading: 0 }], samplePeriod: 0.05,
+    offences: 0, penalty: 0, outside: false };
 }
 
 export function yawLimit(speed: number): number {
@@ -32,7 +38,7 @@ export function yawLimit(speed: number): number {
 export function stepAttack(race: AttackRace, input: AttackInput, dt = ATTACK_STEP): void {
   if (race.finished || !Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, 1 / 30);
-  const previousS = race.s, previousTime = race.time;
+  const previousS = race.s, previousX = race.x, previousTime = race.time;
   race.time += dt;
   race.hitCooldown = Math.max(0, race.hitCooldown - dt);
   const steer = Number.isFinite(input.steer) ? clamp(input.steer, -1, 1) : 0;
@@ -56,6 +62,7 @@ export function stepAttack(race: AttackRace, input: AttackInput, dt = ATTACK_STE
       race.event = 'KONTAKT · TRACISZ PRĘDKOŚĆ'; race.eventUntil = race.time + 1.5;
     }
   }
+  observeTrackLimits(race, loopAllTyresOutside(race.x, race.heading));
   // A missed gate holds forward progress, never teleports or grants the gate.
   while (race.checkpoint < CHECKPOINTS.length && race.s >= CHECKPOINTS[race.checkpoint]) {
     const gate = CHECKPOINTS[race.checkpoint];
@@ -72,6 +79,7 @@ export function stepAttack(race: AttackRace, input: AttackInput, dt = ATTACK_STE
     race.checkpoint++;
     if (gate === TRACK_LENGTH) { race.s = TRACK_LENGTH; race.time = crossing; race.finished = true; }
   }
+  race.groundSpeed = Math.hypot(race.s - previousS, race.x - previousX) / dt;
   const last = race.trace[race.trace.length - 1];
   if (race.finished || race.time - last.t >= race.samplePeriod - 1e-8) {
     race.trace.push({ t: race.time, s: race.s, x: race.x, heading: race.heading });
@@ -101,25 +109,34 @@ export function ghostTimeAt(trace: GhostFrame[], distance: number): number | nul
   return a.t + (b.t - a.t) * clamp((distance - a.s) / Math.max(0.00001, b.s - a.s), 0, 1);
 }
 
+export function attackResult(race: { time: number; penalty: number }): number {
+  return race.time + race.penalty;
+}
+
 export function recordFromRace(race: AttackRace): AttackRecord {
-  return { version: PHYSICS_VERSION, track: TRACK_VERSION, time: race.time, sectors: [...race.sectors], trace: race.trace.map(f => ({ ...f })) };
+  return {
+    version: PHYSICS_VERSION, track: TRACK_VERSION, drivingTime: race.time, result: attackResult(race),
+    penalty: race.penalty, offences: race.offences, sectors: [...race.sectors], trace: race.trace.map(f => ({ ...f })),
+  };
 }
 
 export function parseAttackRecord(raw: string | null): AttackRecord | null {
   try {
     if (!raw || raw.length > 4_000_000) return null;
     const data = JSON.parse(raw) as AttackRecord;
-    if (!data || data.version !== PHYSICS_VERSION || data.track !== TRACK_VERSION || !Number.isFinite(data.time) || data.time <= 0
+    if (!data || data.version !== PHYSICS_VERSION || data.track !== TRACK_VERSION || !Number.isFinite(data.drivingTime) || data.drivingTime <= 0
+      || !Number.isInteger(data.offences) || data.offences < 0 || data.penalty !== penaltyForOffences(data.offences)
+      || !Number.isFinite(data.result) || Math.abs(data.result - (data.drivingTime + data.penalty)) > 1e-6
       || !Array.isArray(data.sectors) || data.sectors.length !== 3 || !Array.isArray(data.trace) || data.trace.length < 2 || data.trace.length > 12001) return null;
     let t = -1, s = -1;
     for (const frame of data.trace) {
       if (!frame || ![frame.t, frame.s, frame.x, frame.heading].every(Number.isFinite) || frame.t <= t || frame.s < s
-        || frame.t < 0 || frame.t > data.time || frame.s < 0 || frame.s > TRACK_LENGTH || Math.abs(frame.x) > BARRIER || Math.abs(frame.heading) > 1.31) return null;
+        || frame.t < 0 || frame.t > data.drivingTime || frame.s < 0 || frame.s > TRACK_LENGTH || Math.abs(frame.x) > BARRIER || Math.abs(frame.heading) > 1.31) return null;
       t = frame.t; s = frame.s;
     }
-    if (data.trace[0].t !== 0 || data.trace[0].s !== 0 || t !== data.time || s !== TRACK_LENGTH
-      || data.sectors.some((value, i) => !Number.isFinite(value) || value <= (data.sectors[i - 1] ?? 0) || value > data.time)
-      || data.sectors[2] !== data.time) return null;
+    if (data.trace[0].t !== 0 || data.trace[0].s !== 0 || t !== data.drivingTime || s !== TRACK_LENGTH
+      || data.sectors.some((value, i) => !Number.isFinite(value) || value <= (data.sectors[i - 1] ?? 0) || value > data.drivingTime)
+      || data.sectors[2] !== data.drivingTime) return null;
     return data;
   } catch { return null; }
 }

@@ -1,4 +1,5 @@
 import { ghostAt, type AttackRace, type AttackRecord } from './time-attack-engine.ts';
+import { LOOP_TYRES, LOOP_WHITE_INSET, LOOP_WHITE_WIDTH } from './track-limits.ts';
 import { BARRIER, BRAKING_MARKERS, CHECKPOINTS, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, trackPoint } from './time-attack-track.ts';
 
 export type AttackCamera = { angle: number };
@@ -47,7 +48,7 @@ export function renderAttack(ctx: CanvasRenderingContext2D, w: number, h: number
   }
   for (const side of [-1, 1]) {
     path(side * BARRIER); ctx.strokeStyle = '#d4d8cf'; ctx.lineWidth = 0.4; ctx.stroke();
-    path(side * (ROAD_HALF - 0.13)); ctx.strokeStyle = '#d9ddce'; ctx.lineWidth = 0.12; ctx.stroke();
+    path(side * (ROAD_HALF - LOOP_WHITE_INSET)); ctx.strokeStyle = '#d9ddce'; ctx.lineWidth = LOOP_WHITE_WIDTH; ctx.stroke();
   }
   for (const s of [0, ...CHECKPOINTS]) {
     if (s < begin || s > end) continue;
@@ -87,7 +88,7 @@ function drawCar(ctx: CanvasRenderingContext2D, s: number, x: number, heading: n
   ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle + heading); ctx.globalAlpha = alpha;
   ctx.fillStyle = '#14201f'; ctx.fillRect(-1.15, -1.65, 2.5, 4.3);
   ctx.fillStyle = '#11171b';
-  for (const side of [-1, 1]) { ctx.fillRect(side < 0 ? -0.95 : 0.55, -1.4, 0.4, 0.95); ctx.fillRect(side < 0 ? -0.95 : 0.55, 1.0, 0.4, 1.05); }
+  for (const tyre of LOOP_TYRES) ctx.fillRect(tyre.x, tyre.y, tyre.w, tyre.h);
   ctx.fillStyle = color; ctx.fillRect(-0.32, -2.2, 0.64, 2.4); ctx.fillRect(-0.62, -0.6, 1.24, 2.5);
   ctx.fillRect(-0.88, -1.95, 1.76, 0.3); ctx.fillRect(-0.94, 1.9, 1.88, 0.35);
   ctx.fillStyle = '#f3ead7'; ctx.fillRect(-0.12, -1.7, 0.24, 1.1); ctx.fillRect(-0.9, 2.05, 1.8, 0.1);

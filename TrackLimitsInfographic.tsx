@@ -4,6 +4,8 @@ import {
   CircleHelp, Crosshair, ExternalLink, Flag, Info, Maximize2,
   Plus, Radio, RotateCcw, ShieldCheck, Timer, TriangleAlert, X,
 } from 'lucide-react';
+import { penaltyForOffences } from './track-limits';
+
 const RaceGame = lazy(() => import('./RaceGame'));
 const TimeAttackGame = lazy(() => import('./TimeAttackGame'));
 type PageTab = 'info' | 'game' | 'attack';
@@ -198,7 +200,7 @@ const LimitsPanel = memo(function LimitsPanel() {
   const currentNote = selectedScenario >= 0 ? SCENARIOS[selectedScenario].note
     : legal ? `Na torze ${inside === 1 ? 'zostaje' : 'zostają'} ${inside} ${tyreNoun(inside)}.`
       : 'Wszystkie cztery opony są za białą linią. Tarka nie jest torem.';
-  const totalPenalty = Math.max(0, strikes - 3) * 5;
+  const totalPenalty = penaltyForOffences(strikes);
   const contactX = CAR_X + COS * (85 + 20) - SIN * (-42 - 10);
   const contactY = carY + tyreTop(85, -42);
   const lensGap = (contactY - EDGE) * 3;

@@ -1,7 +1,10 @@
 import { OFFROAD_LIMIT, trackAt } from './race-track.ts';
+import { observeTrackLimits, penaltyForOffences, sprintAllTyresOutside } from './track-limits.ts';
 
 export const RACE_SECONDS = 90;
 export const FIXED_STEP = 1 / 120;
+export const SPRINT_RECORD_KEY = 'f1-w-punkt:sprint-record:v3';
+const PLACE_BONUS = [1200, 800, 500, 300, 200, 100, 50, 0];
 
 export type Controls = { left: boolean; right: boolean; brake: boolean; boost: boolean; steerTarget?: number };
 export type Rival = { id: number; distance: number; x: number; speed: number; color: string; cooldown: number };
@@ -13,7 +16,10 @@ export type Race = {
   boostTime: number; boostWasDown: boolean;
   slipstream: boolean; inCorner: boolean; cornerClean: boolean; cleanCorners: number;
   braking: boolean; gripRecovery: number; slides: number;
+  offences: number; penalty: number; outside: boolean;
+  flagPosition: number; resultPosition: number; settled: boolean;
 };
+export type SprintRecord = { score: number; position: number; offences: number; penalty: number };
 
 export const emptyControls = (): Controls => ({ left: false, right: false, brake: false, boost: false });
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -27,6 +33,7 @@ export function createRace(): Race {
     steering: 0, event: '', eventTime: 0, finished: false, boostTime: 0, boostWasDown: false,
     slipstream: false, inCorner: false, cornerClean: true, cleanCorners: 0,
     braking: false, gripRecovery: 0, slides: 0,
+    offences: 0, penalty: 0, outside: false, flagPosition: 0, resultPosition: 0, settled: false,
     rivals: colors.map((color, i) => ({ id: i, distance: 26 + i * 32,
       x: [-0.54, 0.45, 0, -0.43, 0.52, -0.12, 0.38][i], speed: 84 + i * 0.9, color, cooldown: 0 })),
   };
@@ -41,9 +48,20 @@ export function position(race: Race): number {
 }
 
 export function score(race: Race): number {
+  const place = race.finished ? PLACE_BONUS[(race.settled ? race.resultPosition : position(race)) - 1] ?? 0 : 0;
   return Math.max(0, Math.floor(race.distance / 8) + race.cleanPasses * 150 + race.bestCombo * 50
-    + race.cleanCorners * 180 - race.hits * 180 - race.slides * 150
-    + (race.finished ? [1200, 800, 500, 300, 200, 100, 50, 0][position(race) - 1] : 0));
+    + race.cleanCorners * 180 - race.hits * 180 - race.slides * 150 + place);
+}
+
+export function parseSprintRecord(raw: string | null): SprintRecord | null {
+  try {
+    if (!raw) return null;
+    const data = JSON.parse(raw) as SprintRecord;
+    if (!data || !Number.isFinite(data.score) || data.score < 0 || !Number.isInteger(data.position)
+      || data.position < 1 || data.position > 8 || !Number.isInteger(data.offences) || data.offences < 0
+      || data.penalty !== penaltyForOffences(data.offences)) return null;
+    return { score: data.score, position: data.position, offences: data.offences, penalty: data.penalty };
+  } catch { return null; }
 }
 
 // A tap always produces a noticeable burst; holding extends it while fuel lasts.
@@ -72,6 +90,7 @@ export function stepRace(race: Race, input: Controls, delta: number): void {
   race.x = clamp(race.x + steer * dt * (1.1 + race.speed / 100) * steeringGrip
     - track.curve * dt * (race.speed / 90) * (0.12 + overspeed * 0.065), -1.45, 1.45);
   const offroad = Math.abs(race.x) > OFFROAD_LIMIT;
+  observeTrackLimits(race, sprintAllTyresOutside(race.x, race.steering));
   if (offroad && overspeed > 10 && race.gripRecovery === 0 && race.speed > track.safeSpeed + 10) {
     race.gripRecovery = 2.2; race.speed *= 0.6; race.slides += 1;
     race.event = 'UTRATA PRZYCZEPNOŚCI · HAMUJ PRZED ZAKRĘTEM'; race.eventTime = 2.2;
@@ -102,6 +121,16 @@ export function stepRace(race: Race, input: Controls, delta: number): void {
   if (offroad) race.combo = 0;
   const previousDistance = race.distance;
   race.distance += race.speed * dt;
+  advanceRivals(race, dt, previousDistance, offroad, true);
+  if (race.time >= RACE_SECONDS - 1e-8) {
+    race.time = RACE_SECONDS;
+    race.finished = true;
+    race.boost = false;
+    settleRace(race);
+  }
+}
+
+function advanceRivals(race: Race, dt: number, previousDistance: number, offroad: boolean, collide: boolean) {
   for (const rival of race.rivals) {
     const previousGap = rival.distance - previousDistance;
     rival.cooldown = Math.max(0, rival.cooldown - dt);
@@ -119,6 +148,7 @@ export function stepRace(race: Race, input: Controls, delta: number): void {
     rival.distance += rival.speed * dt;
     const lane = [-0.58, 0, 0.58][Math.floor(race.time / (5.5 + rival.id * 0.3) + rival.id * 1.7) % 3];
     rival.x += clamp(lane - rival.x, -dt * 0.13, dt * 0.13);
+    if (!collide) continue;
     const gap = rival.distance - race.distance;
     if (Math.abs(gap) < 16 && Math.abs(rival.x - race.x) < 0.22 && race.protection === 0 && rival.cooldown === 0) {
       race.speed = Math.max(25, race.speed * 0.57);
@@ -140,9 +170,20 @@ export function stepRace(race: Race, input: Controls, delta: number): void {
       race.eventTime = 2;
     }
   }
-  if (race.time >= RACE_SECONDS - 1e-8) {
-    race.time = RACE_SECONDS;
-    race.finished = true;
-    race.boost = false;
+}
+
+// Rivals keep driving for the penalty while the player's car stays where the flag fell.
+export function settleRace(race: Race): void {
+  if (race.settled) return;
+  race.flagPosition = position(race);
+  race.resultPosition = race.flagPosition;
+  race.settled = true;
+  if (race.penalty <= 0) return;
+  const copy = structuredClone(race);
+  const steps = Math.round(race.penalty / FIXED_STEP);
+  for (let step = 0; step < steps; step++) {
+    copy.time += FIXED_STEP;
+    advanceRivals(copy, FIXED_STEP, copy.distance, false, false);
   }
+  race.resultPosition = 1 + copy.rivals.filter(rival => rival.distance > race.distance).length;
 }

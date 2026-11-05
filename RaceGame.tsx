@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronLeft, Flag, Gauge, Maximize2, Pause, Play, RotateCcw, Smartphone, Trophy, Zap } from 'lucide-react';
-import { createRace, emptyControls, FIXED_STEP, position, RACE_SECONDS, score, stepRace, triggerBoost, type Controls, type Race } from './race-engine';
+import { createRace, emptyControls, FIXED_STEP, parseSprintRecord, position, RACE_SECONDS, score, SPRINT_RECORD_KEY, stepRace, triggerBoost, type Controls, type Race, type SprintRecord } from './race-engine';
+import { trackLimitNotice } from './track-limits';
 import { renderRace } from './race-renderer';
 import { OFFROAD_LIMIT, trackAt } from './race-track';
 import { SwipeSteering } from './race-gesture';
@@ -8,18 +9,12 @@ import { TRACK_LOCATION, TRACK_NAMES } from './track-labels';
 import './race-game.css';
 
 type Phase = 'ready' | 'orient' | 'countdown' | 'racing' | 'paused' | 'finished';
-type RecordScore = { score: number; position: number };
 type ButtonControl = 'left' | 'right' | 'brake' | 'boost';
-const RECORD_KEY = 'f1-w-punkt:sprint-record:v2';
 const DRIVER = `${import.meta.env.BASE_URL}game/driver.png`;
 const MENU_DRIVER = `${import.meta.env.BASE_URL}game/driver-menu.jpg`;
 
-function readRecord(): RecordScore | null {
-  try {
-    const data = JSON.parse(localStorage.getItem(RECORD_KEY) || 'null');
-    return data && Number.isFinite(data.score) && data.score >= 0 && Number.isInteger(data.position)
-      && data.position >= 1 && data.position <= 8 ? data : null;
-  } catch { return null; }
+function readRecord(): SprintRecord | null {
+  try { return parseSprintRecord(localStorage.getItem(SPRINT_RECORD_KEY)); } catch { return null; }
 }
 
 export default function RaceGame({ active, onImmersiveChange }: { active: boolean; onImmersiveChange: (value: boolean) => void }) {
@@ -170,12 +165,12 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
     };
     const observer = new ResizeObserver(resize); observer.observe(element); resize();
     const finish = () => {
-      releaseControls(); changePhase('finished');
-      const current = { score: score(race.current), position: position(race.current) };
+      releaseControls(); setHud(snapshot(race.current)); changePhase('finished');
+      const current = { score: score(race.current), position: race.current.resultPosition, offences: race.current.offences, penalty: race.current.penalty };
       const previous = readRecord();
       if (!previous || current.score > previous.score) {
         setRecord(current); setNewRecord(true);
-        try { localStorage.setItem(RECORD_KEY, JSON.stringify(current)); setStorageFailed(false); }
+        try { localStorage.setItem(SPRINT_RECORD_KEY, JSON.stringify(current)); setStorageFailed(false); }
         catch { setStorageFailed(true); }
       }
     };
@@ -258,6 +253,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
           <div className={`rg-timer ${hud.remaining <= 10 ? 'is-urgent' : ''}`}><span>DO METY</span><strong>{String(Math.floor(hud.remaining / 60)).padStart(2, '0')}:{String(hud.remaining % 60).padStart(2, '0')}</strong></div>
           <div className="rg-points"><span>PUNKTY</span><strong>{hud.score.toLocaleString('pl-PL')}</strong></div>
         </div>
+        <div className={`rg-limits ${hud.offences >= 4 ? 'is-penalty' : hud.offences === 3 ? 'is-warning' : ''}`} role="status" aria-live="polite" aria-atomic="true"><span>WYJAZDY <b>{hud.offences}</b></span><span>KARA <b>+{hud.penalty} s</b></span>{hud.limitNotice && <strong>{hud.limitNotice}</strong>}</div>
         <div className="rg-course-label"><span className="rg-live-dot" /> {TRACK_NAMES.sprint} · {TRACK_LOCATION}</div>
         {immersive && <div className={`rg-corner-cue ${hud.tooFast ? 'is-danger' : hud.nextDistance < 160 ? 'is-braking-zone' : ''}`}>
           {hud.nextDistance < 190 ? <>{hud.nextTurn < 0 ? <ArrowLeft size={25} /> : <ArrowRight size={25} />}<div><strong>{hud.inCorner ? hud.cornerName : `${hud.nextTurn < 0 ? 'LEWY' : 'PRAWY'} ZA ${hud.nextDistance} M`}</strong><span>{hud.tooFast ? 'HAMUJ!' : hud.inCorner ? 'CEL' : 'HAMUJ DO'} {hud.cornerSpeed} KM/H</span></div></> : <><Zap size={22} /><div><strong>PROSTA · ATAKUJ</strong><span>{hud.slipstream ? 'CIEŃ AERO · WYPRZEDZAJ' : 'UŻYJ ERS NA PROSTEJ'}</span></div></>}
@@ -289,18 +285,20 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
         {mustRotate || phase === 'orient' ? <div className="rg-dialog"><Smartphone className="rg-rotate-icon" size={48} /><h2>Obróć telefon</h2><p>Tor po lewej. Ty w kokpicie po prawej.<br />Dwa kciuki. Pełna kontrola.</p><small>Jeśli ekran się nie obraca, wyłącz blokadę obrotu telefonu.</small><button className="rg-secondary" onClick={exit}><ChevronLeft size={17} /> Wróć</button></div>
           : phase === 'countdown' ? <div className="rg-countdown" role="status" aria-live="polite"><strong key={countdown}>{countdown}</strong><span>{race.current.time > 0 ? 'WRACAMY NA TOR' : 'PRZESUWAJ PALEC PO TORZE, ABY SKRĘCAĆ'}</span></div>
           : phase === 'paused' ? <div className="rg-dialog"><Pause size={32} /><h2>Pit stop.</h2><p>Wyścig poczeka. Wracasz do walki?</p><button className="rg-start" onClick={resume}><Play size={18} fill="currentColor" /> Wznów wyścig</button><button className="rg-secondary" onClick={exit}><ChevronLeft size={17} /> Wyjdź do zakładki</button></div>
-          : <div className="rg-dialog rg-result"><Trophy size={32} /><h2>{hud.position === 1 ? 'To Twoje podium.' : hud.position <= 3 ? 'Jesteś na podium!' : 'Meta. Jeszcze raz?'}</h2><div className="rg-result-numbers"><div><span>POZYCJA</span><strong>P{hud.position}<small>/8</small></strong></div><div><span>TWÓJ WYNIK</span><strong>{hud.score.toLocaleString('pl-PL')}<small> pkt</small></strong></div></div><p>{hud.cleanPasses} czystych wyprzedzeń · najlepsza seria ×{hud.bestCombo} · kolizje: {hud.hits}</p>{newRecord && <b className="rg-new-record">NOWY REKORD OSOBISTY</b>}{storageFailed && <small>Rekord zostanie tylko na tę sesję — przeglądarka blokuje zapis.</small>}<div className="rg-result-actions"><button className="rg-start" onClick={() => start()}><RotateCcw size={18} /> Jedź ponownie</button><button className="rg-secondary" onClick={exit}>Zakończ</button></div></div>}
+          : <div className="rg-dialog rg-result"><Trophy size={32} /><h2>{hud.resultPosition === 1 ? 'To Twoje podium.' : hud.resultPosition <= 3 ? 'Jesteś na podium!' : 'Meta. Jeszcze raz?'}</h2><div className="rg-result-numbers"><div><span>NA MECIE</span><strong>P{hud.flagPosition}<small>/8</small></strong></div><div><span>KARA</span><strong>+{hud.penalty}<small> s</small></strong></div><div><span>POZYCJA KOŃCOWA</span><strong>P{hud.resultPosition}<small>/8</small></strong></div></div><p>Wynik {hud.score.toLocaleString('pl-PL')} pkt · {hud.cleanPasses} czystych wyprzedzeń · najlepsza seria ×{hud.bestCombo} · kolizje: {hud.hits}</p>{newRecord && <b className="rg-new-record">NOWY REKORD OSOBISTY</b>}{storageFailed && <small>Rekord zostanie tylko na tę sesję — przeglądarka blokuje zapis.</small>}<div className="rg-result-actions"><button className="rg-start" onClick={() => start()}><RotateCcw size={18} /> Jedź ponownie</button><button className="rg-secondary" onClick={exit}>Zakończ</button></div></div>}
       </div>}
       {immersive && phase === 'racing' && <button className="rg-exit" onClick={pause}><ChevronLeft size={15} /><span>MENU</span></button>}
     </div>
 
-    {!immersive && <div className="rg-how-to"><div><h2>Hamuj przed. Atakuj po.</h2><p>Przesuwaj palec w lewo lub w prawo po torze. Bolid podąża za ruchem; po puszczeniu palca przestajesz skręcać. Drugim kciukiem możesz jednocześnie hamować lub używać ERS. ERS daje dodatkową moc, zużywając zgromadzoną energię. Czytaj wskazówki i hamuj przed zakrętem, żeby zachować przyczepność. Na prostej złap cień aerodynamiczny rywala i zaatakuj z ERS. Czyste wyprzedzanie i dobre wyjście z zakrętu odnawiają energię ERS.</p></div><div className="rg-keyboard"><span>NA KOMPUTERZE</span><p><kbd>←</kbd><kbd>→</kbd> skręt <kbd>↓</kbd> hamulec<br /><kbd>Spacja</kbd> ERS <kbd>P</kbd> pauza</p><button onClick={() => start(false)} disabled={!driverLoaded}><Maximize2 size={16} /> Graj w oknie</button></div></div>}
+    {!immersive && <div className="rg-how-to"><div><h2>Hamuj przed. Atakuj po.</h2><p>Przesuwaj palec w lewo lub w prawo po torze. Bolid podąża za ruchem; po puszczeniu palca przestajesz skręcać. Drugim kciukiem możesz jednocześnie hamować lub używać ERS. ERS daje dodatkową moc, zużywając zgromadzoną energię. Czytaj wskazówki i hamuj przed zakrętem, żeby zachować przyczepność. Na prostej złap cień aerodynamiczny rywala i zaatakuj z ERS. Czyste wyprzedzanie i dobre wyjście z zakrętu odnawiają energię ERS. Wyjazd liczy się, gdy wszystkie cztery opony znajdą się za zewnętrzną krawędzią białej linii: dwa pierwsze bez kary, trzeci to ostrzeżenie, a od czwartego każde dokłada 5 sekund. Po mecie rywale jadą dalej przez czas kary, a Twój bolid stoi. Premia i rekord biorą pozycję końcową.</p></div><div className="rg-keyboard"><span>NA KOMPUTERZE</span><p><kbd>←</kbd><kbd>→</kbd> skręt <kbd>↓</kbd> hamulec<br /><kbd>Spacja</kbd> ERS <kbd>P</kbd> pauza</p><button onClick={() => start(false)} disabled={!driverLoaded}><Maximize2 size={16} /> Graj w oknie</button></div></div>}
   </section>;
 }
 
 function snapshot(race: Race) {
   const track = trackAt(race.distance);
-  return { position: position(race), remaining: Math.max(0, Math.ceil(RACE_SECONDS - race.time)), speed: Math.round(race.speed * 3.6),
+  return { position: position(race), flagPosition: race.flagPosition, resultPosition: race.resultPosition,
+    offences: race.offences, penalty: race.penalty, limitNotice: trackLimitNotice(race.offences),
+    remaining: Math.max(0, Math.ceil(RACE_SECONDS - race.time)), speed: Math.round(race.speed * 3.6),
     score: score(race), fuel: race.fuel, steering: race.steering, boost: race.boost,
     event: race.eventTime > 0 ? race.event : '', offroad: Math.abs(race.x) > OFFROAD_LIMIT,
     slipstream: race.slipstream, braking: race.braking, gripRecovery: race.gripRecovery > 0, tooFast: track.inCorner && race.speed > track.safeSpeed + 8,

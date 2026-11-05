@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { ATTACK_RECORD_KEY } from '../time-attack-engine.ts';
+import { ATTACK_RECORD_KEY, formatTime, medalFor } from '../time-attack-engine.ts';
 const { chromium, webkit } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.TEST_URL || 'http://127.0.0.1:5173';
-const dir = fileURLToPath(new URL('../artifacts/time-attack/', import.meta.url));
+const dir = process.env.TEST_ARTIFACT_DIR || fileURLToPath(new URL('../artifacts/time-attack/', import.meta.url));
 await mkdir(dir, { recursive: true });
 const report = { checks: [], errors: [], webkit: '' };
 const check = (name, condition) => { assert.ok(condition, name); report.checks.push(name); console.log(`✓ ${name}`); };
@@ -16,7 +16,7 @@ page.on('pageerror', error => report.errors.push(error.message));
 const requests = []; page.on('request', req => requests.push(req.url()));
 await page.goto(`${base}/#na-zyletki`); await page.locator('.ta-primary').first().waitFor();
 check('direct link opens new game and does not fetch the old game', !requests.some(url => url.includes('/RaceGame.tsx')));
-check('menu names Pętla Morena and Gdańsk Morena', await page.locator('.ta-track-name').innerText().then(text => text.includes('Pętla Morena') && text.includes('Gdańsk Morena')));
+check('menu names Pętla Morena and Gdańsk Morena', await page.locator('.ta-race-details').innerText().then(text => text.includes('Pętla Morena') && text.includes('Gdańsk Morena')));
 check('large cockpit portrait and real-game preview are in the menu', await page.locator('.ta-driver-hero img').isVisible() && await page.locator('.ta-preview canvas').isVisible());
 check('three accessible tabs', await page.getByRole('tab').count() === 3);
 check('game names and order match the new branding', JSON.stringify((await page.getByRole('tab').allTextContents()).map(t => t.trim())) === JSON.stringify(['Limity toru', 'Przemek Racing', 'Przemek Racing 3D']));
@@ -148,8 +148,9 @@ const box = await finishPage.locator('.ta-steer').boundingBox();
 const origin = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] });
 await finishPage.exposeFunction('captureTurn', async () => { await finishPage.screenshot({ path: `${dir}/mobile-corner.png` }); });
-const driveUI = async ({ origin, slow = false }) => {
-  const { referenceInput } = await import('/time-attack-engine.ts');
+const driveUI = async ({ origin, slow = false, penalized = false }) => {
+  const { referenceInput, clamp, yawLimit } = await import('/time-attack-engine.ts');
+  const { curvatureAt } = await import('/time-attack-track.ts');
   const node = document.querySelector('.ta-steer'), radius = Math.max(36, Math.min(68, node.clientWidth * 0.32));
   // Test-only telemetry reader. The driver never mutates game state: it sends
   // pointer/keyboard input, while the real animation loop advances the engine.
@@ -163,10 +164,17 @@ const driveUI = async ({ origin, slow = false }) => {
     }
   }
   if (!realRace) throw new Error('Could not read test telemetry');
-  let braking = false, captured = slow;
+  let braking = false, captured = slow || penalized, returning = false;
   for (let i = 0; i < 15000 && !realRace.finished; i++) {
-    const input = referenceInput(realRace);
+    let input = referenceInput(realRace);
     if (slow && realRace.time < 4) input.brake = true;
+    if (penalized && (realRace.offences < 4 || realRace.x > 0.5 || Math.abs(realRace.heading) > 0.2)) {
+      if (realRace.outside) returning = true;
+      if (returning && Math.abs(realRace.x) < 0.5 && Math.abs(realRace.heading) < 0.2 && realRace.offences < 4) returning = false;
+      const target = returning || realRace.offences >= 4 ? 0 : 8.3;
+      input = { brake: true, steer: clamp(curvatureAt(realRace.s + 3) * realRace.speed / yawLimit(realRace.speed)
+        - realRace.heading * 3.5 - (realRace.x - target) * 0.6, -1, 1) };
+    }
     node.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: window.__pointerId, clientX: origin.x + input.steer * radius, clientY: origin.y }));
     if (input.brake !== braking) { node.dispatchEvent(new KeyboardEvent(input.brake ? 'keydown' : 'keyup', { key: 's', bubbles: true })); braking = input.brake; }
     window.__frame();
@@ -176,7 +184,7 @@ const driveUI = async ({ origin, slow = false }) => {
   }
   node.dispatchEvent(new KeyboardEvent('keyup', { key: 's', bubbles: true }));
   node.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: window.__pointerId, clientX: origin.x, clientY: origin.y }));
-  return { time: realRace.time, finished: realRace.finished, hits: realRace.hits };
+  return { time: realRace.time, finished: realRace.finished, hits: realRace.hits, offences: realRace.offences, penalty: realRace.penalty };
 };
 const completed = await finishPage.evaluate(driveUI, { origin });
 await finishPage.waitForTimeout(100);
@@ -184,7 +192,7 @@ await finishPage.getByRole('button', { name: 'Jeszcze raz' }).waitFor();
 check('complete controlled UI run reaches finish', completed.finished && completed.hits === 0);
 await finishPage.screenshot({ path: `${dir}/mobile-finish.png` });
 check('medal result uses the Morena name', (await finishPage.locator('.ta-dialog').innerText()).includes('Pętla Morena'));
-check('new record stores replay and three sectors', await finishPage.evaluate(key => { const data = JSON.parse(localStorage.getItem(key)); return data.time > 45 && data.time < 60 && data.sectors.length === 3 && data.trace.length > 500; }, ATTACK_RECORD_KEY));
+check('new record stores driving time, result, penalties, replay and three sectors', await finishPage.evaluate(key => { const data = JSON.parse(localStorage.getItem(key)); return data.drivingTime > 45 && data.drivingTime < 60 && data.result === data.drivingTime + data.penalty && data.penalty === 0 && data.offences === 0 && data.sectors.length === 3 && data.trace.length > 500; }, ATTACK_RECORD_KEY));
 check('new record never overwrites old record', await finishPage.evaluate(() => JSON.parse(localStorage.getItem('f1-w-punkt:sprint-record:v2')).score === 4242));
 const savedBest = await finishPage.evaluate(key => localStorage.getItem(key), ATTACK_RECORD_KEY);
 await finishPage.getByRole('button', { name: 'Jeszcze raz' }).click();
@@ -209,6 +217,30 @@ await finishPage.getByRole('button', { name: 'Jedź na czas' }).click();
 await finishPage.evaluate(() => { for (let i = 0; i < 362; i++) window.__frame(); });
 await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
 check('existing loop record and ghost reload after renaming', await finishPage.locator('.ta-delta strong').textContent() !== '—' && await finishPage.locator('.ta-ghost-toggle').getAttribute('aria-pressed') === 'true');
+
+// A fresh test record is earned by four actual exits using controls, without changing race state.
+await finishPage.evaluate(key => localStorage.removeItem(key), ATTACK_RECORD_KEY);
+await finishPage.reload();
+await finishPage.getByRole('button', { name: 'Jedź na czas' }).click();
+await finishPage.evaluate(() => { for (let i = 0; i < 362; i++) window.__frame(); });
+await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] });
+const penalized = await finishPage.evaluate(driveUI, { origin, penalized: true });
+await finishPage.getByRole('button', { name: 'Jeszcze raz' }).waitFor();
+check('four actual exits finish with a five-second penalty', penalized.finished && penalized.offences === 4 && penalized.penalty === 5);
+check('finish separates driving time, penalty and result', await finishPage.locator('.ta-result-account strong').allTextContents().then(values =>
+  JSON.stringify(values) === JSON.stringify([formatTime(penalized.time), '+5 s', formatTime(penalized.time + 5)])));
+const medal = medalFor(penalized.time + 5);
+check('finish medal matches the result including the penalty', medal
+  ? await finishPage.locator(`.ta-dialog > p.ta-medal-${medal}`).count() === 1
+  : await finishPage.locator('.ta-dialog > p').first().innerText().then(text => text.startsWith('Do brązu:')));
+check('penalized record stores the official result and a ghost on driving time', await finishPage.evaluate(key => {
+  const record = JSON.parse(localStorage.getItem(key));
+  return record.offences === 4 && record.penalty === 5 && record.result === record.drivingTime + 5
+    && record.trace.at(-1).t === record.drivingTime && record.sectors.at(-1) === record.drivingTime;
+}, ATTACK_RECORD_KEY));
+await finishPage.screenshot({ path: `${dir}/mobile-penalty-finish.png` });
 await finishContext.close();
 
 // Reduced motion and a failed optional image must not prevent a lap.

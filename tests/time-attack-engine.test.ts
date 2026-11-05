@@ -14,6 +14,7 @@ test('six-corner clean reference finishes in 45–60 seconds and calibrates meda
   assert.equal(race.finished, true); assert.equal(race.hits, 0);
   assert.ok(race.time >= 45 && race.time <= 60); assert.ok(Math.abs(race.time - REFERENCE_TIME) < 1e-8);
   assert.equal(race.checkpoint, CHECKPOINTS.length); assert.equal(race.sectors.length, 3);
+  assert.equal(race.offences, 0); assert.equal(race.penalty, 0); assert.equal(race.outside, false);
   assert.equal(race.sectors[2], race.time);
   assert.equal(medalFor(MEDALS.gold), 'gold'); assert.equal(medalFor(MEDALS.gold + 0.001), 'silver');
   assert.equal(medalFor(MEDALS.silver + 0.001), 'bronze'); assert.equal(medalFor(MEDALS.bronze + 0.001), null);
@@ -51,6 +52,21 @@ test('grass slows down, barriers match the geometry and collisions have a cooldo
   for (let i = 0; i < 50; i++) { race.x = BARRIER; stepAttack(race, { steer: 1, brake: false }); }
   assert.equal(race.hits, 1);
 });
+test('ground speed matches distance covered on a straight', () => {
+  const race = createAttack();
+  const before = race.s;
+  stepAttack(race, { steer: 0, brake: false });
+  assert.equal(race.x, 0);
+  assert.ok(Math.abs(race.groundSpeed - (race.s - before) / ATTACK_STEP) < 1e-9);
+  assert.ok(Math.abs(race.groundSpeed - race.speed) < 1e-9);
+});
+test('a held gate reports stopped ground speed while drivetrain speed stays high', () => {
+  const race = createAttack();
+  race.s = CHECKPOINTS[0] - 0.001; race.x = ROAD_HALF + 0.2; race.speed = 13; race.heading = 0;
+  stepAttack(race, { steer: 0, brake: false });
+  assert.ok(race.s < CHECKPOINTS[0]); assert.equal(race.checkpoint, 0);
+  assert.ok(race.groundSpeed < 1); assert.ok(race.speed > 12);
+});
 test('a missed checkpoint blocks progress and the finish until the player returns to asphalt', () => {
   const race = createAttack(); race.s = CHECKPOINTS[0] - 0.01; race.x = ROAD_HALF + 0.2;
   stepAttack(race, { steer: 0, brake: false });
@@ -82,7 +98,7 @@ test('records round-trip separately and reject malformed, stale, oversized or no
   const record = recordFromRace(drive());
   assert.deepEqual(parseAttackRecord(JSON.stringify(record)), record);
   for (const raw of [null, '{', '{}', 'null', 'x'.repeat(4_000_001)]) assert.equal(parseAttackRecord(raw), null);
-  for (const patch of [{ version: 99 }, { track: 'old-track' }, { time: -1 }, { sectors: [1, 1, record.time] }, { trace: [...record.trace].reverse() }]) {
+  for (const patch of [{ version: 99 }, { track: 'old-track' }, { drivingTime: -1 }, { sectors: [1, 1, record.drivingTime] }, { trace: [...record.trace].reverse() }, { penalty: 99 }, { offences: 4 }]) {
     assert.equal(parseAttackRecord(JSON.stringify({ ...record, ...patch })), null);
   }
   const broken = structuredClone(record); broken.trace[10].x = 100;
