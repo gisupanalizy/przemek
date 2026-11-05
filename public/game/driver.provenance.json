@@ -1,0 +1,9 @@
+{
+  "prompt": "Use case: identity-preserve. Asset type: portrait driver-camera panel for a playable retro Formula racing game.\nInput image 1 is the EXACT identity reference: preserve this adult man's short brown hair with faded sides, light eyes, recognizable facial structure, nose, short beard and jaw. Input image 2 is the pixel-art STYLE and cockpit reference.\nCreate a polished detailed 16-bit pixel-art frontal driver-camera image: this SAME man visible from hair to waist, facing the camera, seated inside a red and white formula race car cockpit, red racing suit, black harnesses, gloved hands holding a dark steering wheel. Face large and accurately recognizable, uncovered, no helmet. Face centered at upper 32% of image. Entire hair visible with small margin. Steering wheel at lower 75% of image. Narrow portrait composition suitable for a right-side game panel. Dark carbon cockpit surrounds the body. Background is quiet dark charcoal, no track, no other people. Consistent pixel grid, fine detailed pixel facial features rather than coarse blocky face. No HUD, no words, no logos, no numbers, no watermarks, no inset portrait. Similarity to the real man is the highest priority. This image is a live driver-camera art plate, not a screenshot of the complete game.",
+  "tool": "image_gen.imagegen",
+  "sourceImages": [
+    "User attachment 1: identity reference",
+    "User attachment 2: pixel-art cockpit reference"
+  ],
+  "generatedPath": "/Users/jakub.olech/.codex/generated_images/01a1a8ef-389e-7631-bcb9-20b4b9d4b1c6/exec-21cef452-411d-490e-8cec-725ec7b5ded5.png"
+}
