@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, ArrowLeftRight, ArrowRight, CornerDownLeft, CornerDownRight, Ghost, Pause, Play, RotateCcw, Trophy } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, ArrowRight, CornerDownLeft, CornerDownRight, Flag, Ghost, Pause, Play, RotateCcw, Timer, Trophy } from 'lucide-react';
 import { ATTACK_RECORD_KEY, ATTACK_STEP, clamp, createAttack, formatTime, ghostTimeAt, MEDALS, medalFor, parseAttackRecord, recordFromRace, stepAttack,
   type AttackInput, type AttackRace, type AttackRecord } from './time-attack-engine';
 import { nextCorner, TRACK_LENGTH } from './time-attack-track';
@@ -170,9 +170,9 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
     {!immersive && <div className="ta-intro">
       <div className="ta-intro-copy"><h1>Przemek <span>Racing</span></h1><p className="ta-lead">Sześć zakrętów. Jedno okrążenie.<br />Każda setna należy do Ciebie.</p>
         <p className="ta-description">Start i meta w tym samym miejscu. Hamuj przed zakrętem, znajdź swoją linię i pokonaj ducha najlepszego okrążenia.</p>
-        <p className="ta-track-name"><strong>{TRACK_NAMES.attack}</strong><span>{TRACK_LOCATION} · 1,265 km</span></p>
-        <button className="ta-primary" onClick={() => start()}><Play size={19} fill="currentColor" /> Jedź na czas <ArrowRight size={18} /></button>
-        <div className="ta-best">Najlepszy czas na pętli <strong>{record ? formatTime(record.time) : 'Pierwsze okrążenie przed Tobą'}</strong></div>
+        <div className="ta-race-details"><span><Flag size={16} /> {TRACK_NAMES.attack} · {TRACK_LOCATION}</span><span><Timer size={16} /> 1,265 KM</span></div>
+        <button className="ta-primary" onClick={() => start()}><Play size={20} fill="currentColor" /> Jedź na czas <ArrowRight size={20} /></button>
+        <p className="ta-best">Najlepszy czas na pętli {record ? <strong className="is-time">{formatTime(record.time)}</strong> : <strong>Pierwsze okrążenie przed Tobą</strong>}</p>
         <a className="ta-compare" href="#gra">Zagraj w „Przemek Racing 3D” <ArrowRight size={15} /></a>
       </div>
       <figure className="ta-hero-driver">{driver('hero')}<figcaption><span>KAMERA KIEROWCY</span><strong>GŁÓWNA ROLA: TY</strong></figcaption></figure>

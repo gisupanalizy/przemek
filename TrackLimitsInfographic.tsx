@@ -48,11 +48,15 @@ function tyreTop(x: number, y: number) {
 const LIMIT_Y = EDGE - tyreTop(85, -42);
 const LIMIT_POSITION = (LIMIT_Y - MIN_Y) / TRAVEL * 100;
 const SCENARIOS = [
-  { short: 'Klasyczna linia', description: '0 kół poza torem', position: 0, count: '0', note: 'Wszystkie cztery opony na asfalcie. Pełna kontrola, pełna legalność.' },
-  { short: 'Agresywny najazd', description: '2 koła na tarce', position: (244 - MIN_Y) / TRAVEL * 100, count: '2', note: 'Prawa para opon na tarce. Lewa para nadal utrzymuje kontakt z torem.' },
-  { short: 'Na żyletki', description: '3 poza · 1 na linii', position: LIMIT_POSITION, count: '3', note: 'Styl Antonellego: trzy opony poza torem, jedna styka się z białą linią. To wystarczy.' },
-  { short: 'Poza limitem', description: '4 koła poza torem', position: 100, count: '4', note: 'Żadna opona nie dotyka toru ani białej linii. To przekroczenie limitów.' },
+  { short: 'Klasyczna linia', description: '0 kół poza torem', position: 0, count: '0', note: 'Cztery opony na asfalcie.' },
+  { short: 'Agresywny najazd', description: '2 koła na tarce', position: (244 - MIN_Y) / TRAVEL * 100, count: '2', note: 'Dwie prawe opony są na tarce, dwie lewe nadal na asfalcie. Przejazd jest legalny.' },
+  { short: 'Na żyletki', description: '3 poza · 1 na linii', position: LIMIT_POSITION, count: '3', note: 'Trzy opony za linią, czwarta jeszcze jej dotyka. Kibice mówią na to „styl Antonellego”.' },
+  { short: 'Poza limitem', description: '4 koła poza torem', position: 100, count: '4', note: 'Żadna opona nie dotyka asfaltu ani białej linii. To wyjazd poza tor.' },
 ] as const;
+
+function tyreNoun(n: number) {
+  return n === 1 ? 'opona' : n >= 2 && n <= 4 ? 'opony' : 'opon';
+}
 
 type Session = 'qualifying' | 'race' | 'advantage';
 
@@ -105,8 +109,8 @@ export default function TrackLimitsInfographic() {
   const color = !legal ? RED : onEdge ? AMBER : GREEN;
   const selectedScenario = SCENARIOS.findIndex(s => Math.abs(s.position - position) < 0.001);
   const currentNote = selectedScenario >= 0 ? SCENARIOS[selectedScenario].note
-    : legal ? `${inside} ${inside === 1 ? 'opona zachowuje' : 'opony zachowują'} kontakt z torem. Przesuwaj bolid, aby znaleźć granicę.`
-      : 'Wszystkie cztery opony całkowicie za białą linią. Tarka nie jest częścią toru.';
+    : legal ? `Na torze ${inside === 1 ? 'zostaje' : 'zostają'} ${inside} ${tyreNoun(inside)}.`
+      : 'Wszystkie cztery opony są za białą linią. Tarka nie jest torem.';
   const totalPenalty = Math.max(0, strikes - 3) * 5;
   const contactX = CAR_X + COS * (85 + 20) - SIN * (-42 - 10);
   const contactY = carY + tyreTop(85, -42);
@@ -122,10 +126,10 @@ export default function TrackLimitsInfographic() {
     setShowLens(true);
   }
 
-  const statusTitle = !legal ? 'WYKROCZENIE!' : onEdge ? 'LEGALNY — NA LIMICIE' : 'LEGALNY';
-  const statusDetail = !legal ? 'Brak kontaktu z torem · Art. B1.8.6'
-    : onEdge ? 'Styk 1 opony z białą linią wystarczy.'
-      : `${inside} ${inside === 4 ? 'koła' : inside === 1 ? 'koło' : 'koła'} w limitach toru`;
+  const statusTitle = !legal ? 'POZA TOREM' : onEdge ? 'NA STYKU' : 'NA TORZE';
+  const statusDetail = !legal ? 'Żadna opona nie dotyka toru · Art. B1.8.6'
+    : onEdge ? 'Jedna opona dotyka białej linii.'
+      : `${inside} ${tyreNoun(inside)} na torze`;
 
   return (
     <div className="tl min-h-screen bg-[#0f0f14] text-white" style={{ '--tl-signal': color } as CSSProperties}>
@@ -164,8 +168,8 @@ export default function TrackLimitsInfographic() {
       <main id="track-limits" className="tl-main" role="tabpanel" aria-labelledby={`${uid}-tab-info`} hidden={tab !== 'info'}>
         <div className="tl-intro">
           <div>
-            <h1>Granica jest <span>biała.</span></h1>
-            <p>Cztery koła. Jedna linia. Zobacz, gdzie kończy się tor,<br className="tl-desktop-break" /> a zaczynają decyzje sędziów.</p>
+            <h1>Biała linia należy do <span>toru.</span></h1>
+            <p>Bolid jest w limicie, dopóki choć jedna opona dotyka asfaltu albo tej linii.<br className="tl-desktop-break" /> Przesuń go i zobacz, kiedy sędziowie liczą wyjazd.</p>
           </div>
           <div className="tl-rule-tag"><ShieldCheck size={20} /><div><strong>ZASADA 4 KÓŁ</strong><span>FIA 2026 · Art. B1.8.6</span></div></div>
         </div>
@@ -185,7 +189,7 @@ export default function TrackLimitsInfographic() {
               <div className="tl-diagram-meta"><span><i className="tl-dot" /> POZYCJA NA ŻYWO</span><span>SCHEMAT EDUKACYJNY</span><div className="tl-mobile-direction">KIERUNEK JAZDY <ArrowRight size={15} /></div></div>
               <svg viewBox="0 0 800 445" preserveAspectRatio="xMidYMid slice" className="tl-track-svg" role="img" aria-labelledby={`${uid}-svg-title ${uid}-svg-desc`}>
                 <title id={`${uid}-svg-title`}>Położenie bolidu względem białej linii</title>
-                <desc id={`${uid}-svg-desc`}>{outside} kół poza torem. {statusTitle}. {statusDetail}. Kierunek jazdy w prawo. Prawa strona bolidu jest na dole schematu.</desc>
+                <desc id={`${uid}-svg-desc`}>{outside} {tyreNoun(outside)} poza torem. {statusTitle}. {statusDetail}. Kierunek jazdy w prawo. Prawa strona bolidu jest na dole schematu.</desc>
                 <defs>
                   <pattern id={`${uid}-kerb`} width="88" height="68" patternUnits="userSpaceOnUse">
                     <rect width="88" height="68" fill="#d6d5d3" /><path d="M0 0H44V68H0Z" fill="#b83236" />
@@ -289,7 +293,7 @@ export default function TrackLimitsInfographic() {
                 </button>)}
               </div>
               <div className="tl-range-label"><label htmlFor={`${uid}-position`}>Pozycja bolidu względem białej linii</label><output htmlFor={`${uid}-position`}>{Math.round(position)}<small>%</small></output></div>
-              <input id={`${uid}-position`} className="tl-position-range" type="range" min="0" max="100" step="0.1" value={position} onChange={e => setPosition(Number(e.target.value))} aria-valuetext={`${Math.round(position)} procent, ${outside} kół poza torem, ${statusTitle}`} style={{ '--tl-progress': `${position}%` } as CSSProperties} />
+              <input id={`${uid}-position`} className="tl-position-range" type="range" min="0" max="100" step="0.1" value={position} onChange={e => setPosition(Number(e.target.value))} aria-valuetext={`${Math.round(position)} procent, ${outside} ${tyreNoun(outside)} poza torem, ${statusTitle}`} style={{ '--tl-progress': `${position}%` } as CSSProperties} />
               <div className="tl-range-ends"><span>NA TORZE</span><span>NA POBOCZU</span></div>
               <p className="tl-scenario-note"><Info size={14} /><span>{currentNote}</span></p>
             </div>
@@ -314,44 +318,44 @@ export default function TrackLimitsInfographic() {
                 {([{ id: 'qualifying', label: 'Kwalifikacje' }, { id: 'race', label: 'Wyścig' }, { id: 'advantage', label: 'Wyprzedzanie' }] as const).map(s => <button type="button" key={s.id} aria-pressed={session === s.id} onClick={() => setSession(s.id)}>{s.label}</button>)}
               </div>
               <div className="tl-session-content">
-                <p className="tl-session-explainer">{session === 'race' ? 'Policz wyjazdy wszystkimi 4 kołami poza tor.' : session === 'qualifying' ? 'Kwalifikacje i kwalifikacje do sprintu.' : 'Zyskanie trwałej przewagi poza torem.'}</p>
+                <p className="tl-session-explainer">{session === 'race' ? 'Każdy wyjazd czterema kołami dopisuje się do licznika całego wyścigu.' : session === 'qualifying' ? 'Wyjazd czterema kołami kasuje czas tego okrążenia.' : 'Wyprzedzenie albo utrzymanie pozycji poza torem.'}</p>
                 {session === 'race' && <>
                   <section className="tl-race-rules" aria-labelledby={`${uid}-race-rules-title`}>
                     <h3 id={`${uid}-race-rules-title`}>Kara czasowa od 4. wykroczenia</h3>
-                    <p>Nie ma dozwolonej puli wyjazdów. W standardowej procedurze pierwsze trzy wykroczenia nie skutkują karą czasową.</p>
+                    <p>To nie są trzy darmowe wyjazdy. Pierwsze trzy sędziowie tylko zapisują. Od czwartego każde daje 5 sekund, a licznik nie wraca do zera po karze.</p>
                     <ol aria-label="Oficjalna sekwencja kar za limity toru w wyścigu">
                       <li><span>1.–2.</span><span>Strike — bez kary czasowej</span></li>
                       <li className="tl-rule-warning"><span>3.</span><span>Czarno-biała flaga — ostrzeżenie</span></li>
                       <li className="tl-rule-penalty"><span>4.</span><span>+5 sekund</span></li>
                       <li className="tl-rule-penalty"><span>5. i kolejne</span><span>Każde: dodatkowe +5 sekund</span></li>
                     </ol>
-                    <p className="tl-rules-example">5 wykroczeń = +10 s łącznie. Licznik obejmuje cały wyścig i nie zeruje się po karze.</p>
+                    <p className="tl-rules-example">5 wykroczeń = +10 s łącznie.</p>
                     <a href={`${SOURCES.penalties}#page=2`} target="_blank" rel="noreferrer">FIA 2026 Penalty Guidelines · str. 2 <ExternalLink size={11} /></a>
                   </section>
                   <div className="tl-strikes" role="group" aria-label="Liczba wykroczeń w wyścigu">{[1, 2, 3, 4, 5].map(n => <button type="button" key={n} onClick={() => setStrikes(n)} className={`${n <= strikes ? 'tl-strike-filled' : ''} ${n >= 4 && n <= strikes ? 'tl-strike-penalty' : ''} ${n === strikes ? 'tl-strike-current' : ''}`} aria-label={`Ustaw liczbę wykroczeń: ${n}`} aria-pressed={strikes === n}><span>{n === 5 ? '5+' : n}</span><small>{n < 3 ? 'STRIKE' : n === 3 ? 'FLAGA' : '+5 SEK.'}</small></button>)}</div>
                   <div className={`tl-race-message ${strikes >= 4 ? 'tl-tone-red' : strikes >= 3 ? 'tl-tone-amber' : ''}`} role="status" aria-live="polite" aria-atomic="true">
                     <span className="tl-message-id">CAR 12 — {strikes >= 4 ? 'TIME PENALTY' : strikes === 3 ? 'BLACK AND WHITE FLAG' : 'TRACK LIMITS'}</span>
                     <div className="tl-race-message-title">{strikes === 3 ? <BlackWhiteFlag /> : strikes >= 4 ? <Timer size={24} /> : <Flag size={22} />}<strong>{strikes === 0 ? 'CZYSTE KONTO' : strikes <= 2 ? `STRIKE ${strikes}` : strikes === 3 ? 'OSTATNIE OSTRZEŻENIE' : strikes === 4 ? '+5 SEKUND' : 'KOLEJNE +5 SEKUND'}</strong></div>
-                    <p>{strikes === 0 ? 'Pierwszy wyjazd rozpocznie sekwencję ostrzeżeń.' : strikes === 1 ? 'Race Control odnotowuje wykroczenie. Bez kary czasowej.' : strikes === 2 ? 'Drugi strike. Inżynier może ostrzec kierowcę przez radio.' : strikes === 3 ? 'BLACK & WHITE FLAG — oficjalne ostrzeżenie sędziowskie.' : 'Kara do odbycia podczas pit-stopu lub doliczenia do czasu na mecie.'}</p>
+                    <p>{strikes === 0 ? 'Na razie bez wyjazdu. Pierwszy zostanie zapisany, bez kary czasowej.' : strikes === 1 ? 'Pierwsze wykroczenie jest zapisane. Kary czasowej nie ma.' : strikes === 2 ? 'Drugie wykroczenie jest zapisane. Kary czasowej nadal nie ma.' : strikes === 3 ? 'Czarno-biała flaga. To ostatnie ostrzeżenie przed karą czasową.' : '5 sekund na pit-stopie albo doliczone na mecie.'}</p>
                     <div className="tl-penalty-total"><span>ŁĄCZNA KARA CZASOWA</span><b>+{totalPenalty}<small> s</small></b></div>
                   </div>
                   <div className="tl-counter-actions"><button type="button" className="tl-add-button" onClick={() => setStrikes(n => n + 1)}><Plus size={16} /> Dodaj wyjazd poza tor</button><button type="button" className="tl-icon-button" onClick={() => setStrikes(0)} aria-label="Wyzeruj licznik wykroczeń" title="Wyzeruj licznik"><RotateCcw size={16} /></button></div>
-                  <p className="tl-panel-footnote">Nieprawidłowy czas okrążenia także jest usuwany. Sędziowie mogą nie naliczyć strike’a np. po wypchnięciu przez rywala lub unikaniu kolizji. Zyskanie trwałej przewagi podlega odrębnej ocenie i może oznaczać karę już przy pierwszym wyjeździe.</p>
+                  <p className="tl-panel-footnote">Sędziowie nie muszą policzyć wyjazdu, gdy kierowca został wypchnięty, unikał kolizji albo stracił kontrolę. Trwała przewaga jest oceniana osobno i może dać karę już przy pierwszym razie. Nieprawidłowy czas okrążenia i tak przepada.</p>
                 </>}
 
                 {session === 'qualifying' && <>
-                  <div className="tl-qualifying-message tl-tone-red" role="status" aria-live="polite"><span className="tl-message-id">CAR 12 — TRACK LIMITS</span><Timer size={31} /><h3>LAP TIME DELETED</h3><p>Czas okrążenia zostaje skasowany.</p><div className="tl-deleted-lap"><span>OKRĄŻENIE 07 · PRZYKŁAD</span><s>1:24.862</s><X size={17} /></div>{lastCorner && <div className="tl-next-lap"><ArrowRight size={15} /><span>Możliwe skasowanie także następnego okrążenia, jeżeli wyjazd dał korzyść.</span></div>}</div>
+                  <div className="tl-qualifying-message tl-tone-red" role="status" aria-live="polite"><span className="tl-message-id">CAR 12 — TRACK LIMITS</span><Timer size={31} /><h3>LAP TIME DELETED</h3><p>Czas tego okrążenia przepada.</p><div className="tl-deleted-lap"><span>OKRĄŻENIE 07 · PRZYKŁAD</span><s>1:24.862</s><X size={17} /></div>{lastCorner && <div className="tl-next-lap"><ArrowRight size={15} /><span>Kolejne okrążenie może przepaść, jeśli ten wyjazd dał korzyść.</span></div>}</div>
                   <label className="tl-checkbox-row"><input type="checkbox" checked={lastCorner} onChange={e => setLastCorner(e.target.checked)} /><span>Wyjazd w ostatnim zakręcie</span></label>
-                  <p className="tl-panel-footnote">Kolejne okrążenie usuwa się przy możliwej korzyści — szczegóły określają notatki dyrektora wyścigu dla danego toru.</p>
+                  <p className="tl-panel-footnote">O tym, kiedy kasuje się kolejne okrążenie, decydują notatki dyrektora wyścigu dla danego toru.</p>
                 </>}
 
                 {session === 'advantage' && <>
-                  <div className={`tl-advantage-message ${advantageReturned ? 'tl-tone-green' : 'tl-tone-red'}`} role="status" aria-live="polite"><span className="tl-message-id">CAR 12 — {advantageReturned ? 'ADVANTAGE RETURNED' : 'LASTING ADVANTAGE'}</span><div className="tl-race-message-title">{advantageReturned ? <CircleCheck size={24} /> : <TriangleAlert size={24} />}<strong>{advantageReturned ? 'PRZEWAGA ODDANA' : mitigating ? '+5 SEKUND' : '+10 SEKUND'}</strong></div><p>{advantageReturned ? 'Pełny zwrot przewagi może pozwolić uniknąć kary. Ostateczna ocena należy do sędziów.' : 'Wyprzedzenie lub utrzymanie pozycji poza torem może wymagać oddania całej przewagi, w tym pozycji.'}</p><div className="tl-advantage-guide"><ArrowDown size={15} /><span>{advantageReturned ? 'Decyzja po ocenie okoliczności' : mitigating ? 'Okoliczności łagodzące · niższa kara bazowa' : 'Kara bazowa · możliwa surowsza sankcja'}</span></div></div>
+                  <div className={`tl-advantage-message ${advantageReturned ? 'tl-tone-green' : 'tl-tone-red'}`} role="status" aria-live="polite"><span className="tl-message-id">CAR 12 — {advantageReturned ? 'ADVANTAGE RETURNED' : 'LASTING ADVANTAGE'}</span><div className="tl-race-message-title">{advantageReturned ? <CircleCheck size={24} /> : <TriangleAlert size={24} />}<strong>{advantageReturned ? 'PRZEWAGA ODDANA' : mitigating ? '+5 SEKUND' : '+10 SEKUND'}</strong></div><p>{advantageReturned ? 'Oddanie całej przewagi, razem z pozycją, może wystarczyć. Ostatnie słowo mają sędziowie.' : mitigating ? 'Kara wynosi 5 sekund. Przy poważniejszym przypadku może być wyższa.' : 'Bez oddania przewagi kara wynosi 10 sekund. Może być surowsza.'}</p><div className="tl-advantage-guide"><ArrowDown size={15} /><span>{advantageReturned ? 'Sędziowie sprawdzają, czy przewaga wróciła w całości.' : mitigating ? 'Okoliczności łagodzące.' : 'Kara podstawowa.'}</span></div></div>
                   <label className="tl-checkbox-row"><input type="checkbox" checked={advantageReturned} onChange={e => setAdvantageReturned(e.target.checked)} /><span>Oddano całą przewagę / pozycję</span></label>
                   <label className="tl-checkbox-row"><input type="checkbox" checked={mitigating} onChange={e => setMitigating(e.target.checked)} disabled={advantageReturned} /><span>Okoliczności łagodzące</span></label>
-                  <p className="tl-panel-footnote">Dyrektor wyścigu może umożliwić oddanie przewagi. Powrót na tor musi być bezpieczny.</p>
+                  <p className="tl-panel-footnote">Dyrektor wyścigu może pozwolić oddać przewagę. Na tor trzeba wrócić bezpiecznie.</p>
                 </>}
-                <div className="tl-simulator-note"><Info size={13} /><span>Symulator kar działa niezależnie od pozycji bolidu.</span></div>
+                <div className="tl-simulator-note"><Info size={13} /><span>Licznik kar nie zależy od pozycji bolidu na schemacie.</span></div>
               </div>
             </section>
           </aside>
@@ -359,11 +363,11 @@ export default function TrackLimitsInfographic() {
 
         <section className="tl-principle" aria-labelledby={`${uid}-principle-title`}>
           <div className="tl-principle-number">1<span>OPONA</span></div>
-          <div className="tl-principle-copy"><h2 id={`${uid}-principle-title`}>Milimetr kontaktu. Pełna legalność.</h2><p>Wystarczy kontakt jednej opony z torem lub białą linią. Tarka i pobocze są już poza torem.<br className="tl-desktop-break" /> Nie liczy się, ile bolidu wystaje — liczy się, czy zachował kontakt.</p></div>
+          <div className="tl-principle-copy"><h2 id={`${uid}-principle-title`}>Bolid może wisieć nad tarką.</h2><p>W limicie zostaje, dopóki jedna opona trzyma asfalt albo białą linię.</p></div>
           <div className="tl-principle-icon" aria-hidden="true"><ShieldCheck size={35} strokeWidth={1.2} /></div>
         </section>
 
-        <details className="tl-regulatory-notes"><summary><span><CircleHelp size={15} /> Co jeszcze warto wiedzieć?</span><ChevronDown size={15} /></summary><div className="tl-details-body"><p>Wyjazd nie oznacza automatycznie strike’a: sędziowie oceniają m.in. utratę kontroli, unikanie kolizji, wypchnięcie przez rywala i zdarzenia ukarane z innego powodu. Celowe lub niesportowe zachowanie może oznaczać bezpośrednią karę.</p><p>„Styl Antonellego” to potoczna nazwa scenariusza, a nie osobny przepis. Schemat pokazuje opony w rzucie z góry; nie odtwarza pomiaru z kamer FIA. Kolory wskazują kontakt opon, a nie oficjalny sygnał sędziowski.</p><p>Art. B1.8.6 definiuje granicę toru; eskalację pokazują wytyczne FIA, które nie zastępują regulaminu. Rozstrzygnięcie konkretnego incydentu należy do sędziów.</p></div></details>
+        <details className="tl-regulatory-notes"><summary><span><CircleHelp size={15} /> Wyjątki</span><ChevronDown size={15} /></summary><div className="tl-details-body"><p>Sędziowie nie liczą każdego wyjazdu od razu. Sprawdzają między innymi utratę kontroli, unikanie kolizji, wypchnięcie przez rywala i sytuacje ukarane z innego powodu. Celowa albo niesportowa jazda może dostać karę od razu.</p><p>„Styl Antonellego” to potoczna nazwa tego ułożenia kół, a nie osobny przepis. Schemat pokazuje opony z góry i nie odtwarza pomiaru z kamer FIA. Kolor oznacza kontakt opony, nie oficjalny sygnał sędziowski.</p><p>Granicę toru opisuje art. B1.8.6. Eskalację kar pokazują wytyczne FIA, które nie zastępują regulaminu. Konkretny incydent rozstrzygają sędziowie.</p></div></details>
 
         <footer className="tl-footer"><div><span className="tl-footer-label">ŹRÓDŁA FIA</span><a href={SOURCES.regulations} target="_blank" rel="noreferrer">Regulamin 2026 · B1.8.6 <ExternalLink size={11} /></a><a href={SOURCES.penalties} target="_blank" rel="noreferrer">Taryfikator kar <ExternalLink size={11} /></a><a href={SOURCES.driving} target="_blank" rel="noreferrer">Standardy jazdy <ExternalLink size={11} /></a></div><button type="button" onClick={resetAll}><RotateCcw size={13} /> Zresetuj symulację</button></footer>
         <p className="tl-disclaimer">Niezależny materiał edukacyjny. Regulamin: Issue 09, 01.10.2026 · Wytyczne: v01 · Weryfikacja: 04.11.2026. Komunikaty są symulacją, nie transmisją FIA.</p>
