@@ -1,16 +1,37 @@
-import { lazy, Suspense, useCallback, useEffect, useId, useState, type CSSProperties } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleCheck,
   CircleHelp, Crosshair, ExternalLink, Flag, Info, Maximize2,
   Plus, Radio, RotateCcw, ShieldCheck, Timer, TriangleAlert, X,
 } from 'lucide-react';
-
 const RaceGame = lazy(() => import('./RaceGame'));
 const TimeAttackGame = lazy(() => import('./TimeAttackGame'));
 type PageTab = 'info' | 'game' | 'attack';
 const PAGE_TABS: PageTab[] = ['info', 'attack', 'game'];
 const TAB_HASH: Record<PageTab, string> = { info: '#track-limits', game: '#gra', attack: '#na-zyletki' };
 const tabFromHash = (): PageTab => location.hash === '#na-zyletki' ? 'attack' : location.hash === '#gra' ? 'game' : 'info';
+const TAB_LABEL: Record<PageTab, string> = { info: 'Limity toru', attack: 'Przemek Racing', game: 'Przemek Racing 3D' };
+
+function preloadTab(next: PageTab) {
+  if (next === 'attack') void import('./TimeAttackGame');
+  if (next === 'game') void import('./RaceGame');
+}
+
+function TabLoading({ label }: { label: string }) {
+  return <div className="tl-tab-loading" role="status" aria-live="polite">
+    <span className="tl-tab-spinner" aria-hidden="true" />
+    <p>Otwieranie</p>
+    <strong>{label}</strong>
+  </div>;
+}
+
+function TabFlag() {
+  return <svg className="tl-tab-flag" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6.75 19V7.5" /><path d="M6.75 8.25h10.2l-1.8 3.1 1.8 3.1H6.75" /></svg>;
+}
+
+function TabIcon({ pending, optical, children }: { pending: boolean; optical?: 'timer'; children: ReactNode }) {
+  return <span className={`tl-tab-icon${optical ? ` tl-tab-icon-${optical}` : ''}${pending ? ' is-pending' : ''}`}>{children}</span>;
+}
 
 /**
  * React + Tailwind infographic with a lazy-loaded racing game tab.
@@ -62,30 +83,96 @@ type Session = 'qualifying' | 'race' | 'advantage';
 
 export default function TrackLimitsInfographic() {
   const uid = useId().replace(/:/g, '');
-  const [tab, setTab] = useState<PageTab>(tabFromHash);
-  const [gameOpened, setGameOpened] = useState(() => location.hash === '#gra');
-  const [attackOpened, setAttackOpened] = useState(() => location.hash === '#na-zyletki');
+  const initialTab = tabFromHash();
+  const [tab, setTab] = useState<PageTab>(initialTab);
+  const [visible, setVisible] = useState<PageTab>(initialTab);
+  const [gameOpened, setGameOpened] = useState(initialTab === 'game');
+  const [attackOpened, setAttackOpened] = useState(initialTab === 'attack');
   const [gameImmersive, setGameImmersive] = useState(false);
   const [attackImmersive, setAttackImmersive] = useState(false);
-  const immersive = tab === 'game' ? gameImmersive : tab === 'attack' ? attackImmersive : false;
+  const immersive = visible === 'game' ? gameImmersive : visible === 'attack' ? attackImmersive : false;
   const onImmersiveChange = useCallback((value: boolean) => setGameImmersive(value), []);
   const onAttackImmersiveChange = useCallback((value: boolean) => setAttackImmersive(value), []);
+  const pending = tab !== visible;
   const selectTab = (next: PageTab) => {
-    if (next === 'game') setGameOpened(true);
-    if (next === 'attack') setAttackOpened(true);
+    preloadTab(next);
     setTab(next);
     if (location.hash !== TAB_HASH[next]) history.pushState(null, '', TAB_HASH[next]);
   };
   useEffect(() => {
-    const sync = () => {
-      const next = tabFromHash();
-      if (next === 'game') setGameOpened(true);
-      if (next === 'attack') setAttackOpened(true);
-      setTab(next);
-    };
+    if (!pending) return;
+    let inner = 0;
+    let cancelled = false;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        if (cancelled) return;
+        if (tab === 'game') setGameOpened(true);
+        if (tab === 'attack') setAttackOpened(true);
+        setVisible(tab);
+      });
+    });
+    return () => { cancelled = true; cancelAnimationFrame(outer); cancelAnimationFrame(inner); };
+  }, [pending, tab]);
+  useEffect(() => {
+    const sync = () => setTab(tabFromHash());
     window.addEventListener('hashchange', sync); window.addEventListener('popstate', sync);
     return () => { window.removeEventListener('hashchange', sync); window.removeEventListener('popstate', sync); };
   }, []);
+  useEffect(() => {
+    const id = window.setTimeout(() => { preloadTab('attack'); preloadTab('game'); }, 1200);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  return (
+    <div className="tl min-h-screen bg-[#0f0f14] text-white">
+      <style>{STYLES}</style>
+      <header className="tl-topbar" hidden={immersive}>
+        <div className="tl-topbar-inner">
+          <a className="tl-brand" href="#track-limits" aria-label="Limity toru F1 — początek">
+            <span className="tl-speedmark" aria-hidden="true"><i /><i /><i /></span>
+            <strong>F1 <span>W PUNKT</span></strong>
+          </a>
+          <div className="tl-topbar-right"><span className="tl-season">SEZON <b>2026</b></span><a href={SOURCES.regulations} target="_blank" rel="noreferrer">Regulamin FIA <ArrowUpRight size={14} /></a></div>
+        </div>
+      </header>
+
+      <nav className="tl-page-tabs" role="tablist" aria-label="Wybierz zakładkę" hidden={immersive} onKeyDown={event => {
+        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault();
+          const next = event.key === 'Home' ? 'info' : event.key === 'End' ? 'game'
+            : PAGE_TABS[(PAGE_TABS.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : PAGE_TABS.length - 1)) % PAGE_TABS.length];
+          selectTab(next); document.getElementById(`${uid}-tab-${next}`)?.focus();
+        }
+      }}>
+        <button id={`${uid}-tab-info`} role="tab" aria-selected={tab === 'info'} aria-busy={tab === 'info' && pending} data-pending={tab === 'info' && pending ? 'true' : undefined} aria-controls="track-limits" tabIndex={tab === 'info' ? 0 : -1} onPointerDown={() => preloadTab('info')} onClick={() => selectTab('info')}><TabIcon pending={tab === 'info' && pending}><Crosshair size={16} /></TabIcon><span className="tl-tab-label"><span>Limity toru</span></span></button>
+        <button id={`${uid}-tab-attack`} role="tab" aria-selected={tab === 'attack'} aria-busy={tab === 'attack' && pending} data-pending={tab === 'attack' && pending ? 'true' : undefined} aria-controls="na-zyletki" tabIndex={tab === 'attack' ? 0 : -1} onPointerDown={() => preloadTab('attack')} onClick={() => selectTab('attack')}><TabIcon pending={tab === 'attack' && pending} optical="timer"><Timer size={16} /></TabIcon><span className="tl-tab-label"><span>Przemek Racing</span></span></button>
+        <button id={`${uid}-tab-game`} role="tab" aria-selected={tab === 'game'} aria-busy={tab === 'game' && pending} data-pending={tab === 'game' && pending ? 'true' : undefined} aria-controls="gra" tabIndex={tab === 'game' ? 0 : -1} onPointerDown={() => preloadTab('game')} onClick={() => selectTab('game')}><TabIcon pending={tab === 'game' && pending}><TabFlag /></TabIcon><span className="tl-tab-label"><span>Przemek Racing 3D</span></span></button>
+      </nav>
+
+      <div id="gra" role="tabpanel" aria-labelledby={`${uid}-tab-game`} hidden={tab !== 'game'} aria-busy={tab === 'game' && pending}>
+        {tab === 'game' && pending && <TabLoading label={TAB_LABEL.game} />}
+        {gameOpened && <div hidden={tab !== 'game' || pending}>
+          <Suspense fallback={<TabLoading label={TAB_LABEL.game} />}><RaceGame active={visible === 'game'} onImmersiveChange={onImmersiveChange} /></Suspense>
+        </div>}
+      </div>
+
+      <div id="na-zyletki" role="tabpanel" aria-labelledby={`${uid}-tab-attack`} hidden={tab !== 'attack'} aria-busy={tab === 'attack' && pending}>
+        {tab === 'attack' && pending && <TabLoading label={TAB_LABEL.attack} />}
+        {attackOpened && <div hidden={tab !== 'attack' || pending}>
+          <Suspense fallback={<TabLoading label={TAB_LABEL.attack} />}><TimeAttackGame active={visible === 'attack'} onImmersiveChange={onAttackImmersiveChange} /></Suspense>
+        </div>}
+      </div>
+
+      <main id="track-limits" className="tl-main" role="tabpanel" aria-labelledby={`${uid}-tab-info`} hidden={tab !== 'info'} aria-busy={tab === 'info' && pending}>
+        {tab === 'info' && pending && <TabLoading label={TAB_LABEL.info} />}
+        <div hidden={tab === 'info' && pending}><LimitsPanel /></div>
+      </main>
+    </div>
+  );
+}
+
+const LimitsPanel = memo(function LimitsPanel() {
+  const uid = useId().replace(/:/g, '');
   const [position, setPosition] = useState<number>(SCENARIOS[1].position);
   const [session, setSession] = useState<Session>('race');
   const [strikes, setStrikes] = useState(0);
@@ -132,40 +219,7 @@ export default function TrackLimitsInfographic() {
       : `${inside} ${tyreNoun(inside)} na torze`;
 
   return (
-    <div className="tl min-h-screen bg-[#0f0f14] text-white" style={{ '--tl-signal': color } as CSSProperties}>
-      <style>{STYLES}</style>
-      <header className="tl-topbar" hidden={immersive}>
-        <div className="tl-topbar-inner">
-          <a className="tl-brand" href="#track-limits" aria-label="Limity toru F1 — początek">
-            <span className="tl-speedmark" aria-hidden="true"><i /><i /><i /></span>
-            <strong>F1 <span>W PUNKT</span></strong>
-          </a>
-          <div className="tl-topbar-right"><span className="tl-season">SEZON <b>2026</b></span><a href={SOURCES.regulations} target="_blank" rel="noreferrer">Regulamin FIA <ArrowUpRight size={14} /></a></div>
-        </div>
-      </header>
-
-      <nav className="tl-page-tabs" role="tablist" aria-label="Wybierz zakładkę" hidden={immersive} onKeyDown={event => {
-        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-          event.preventDefault();
-          const next = event.key === 'Home' ? 'info' : event.key === 'End' ? 'game'
-            : PAGE_TABS[(PAGE_TABS.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : PAGE_TABS.length - 1)) % PAGE_TABS.length];
-          selectTab(next); document.getElementById(`${uid}-tab-${next}`)?.focus();
-        }
-      }}>
-        <button id={`${uid}-tab-info`} role="tab" aria-selected={tab === 'info'} aria-controls="track-limits" tabIndex={tab === 'info' ? 0 : -1} onClick={() => selectTab('info')}><Crosshair size={16} /> Limity toru</button>
-        <button id={`${uid}-tab-attack`} role="tab" aria-selected={tab === 'attack'} aria-controls="na-zyletki" tabIndex={tab === 'attack' ? 0 : -1} onClick={() => selectTab('attack')}><Timer size={16} /> Przemek Racing</button>
-        <button id={`${uid}-tab-game`} role="tab" aria-selected={tab === 'game'} aria-controls="gra" tabIndex={tab === 'game' ? 0 : -1} onClick={() => selectTab('game')}><Flag size={16} /> Przemek Racing 3D</button>
-      </nav>
-
-      <div id="gra" role="tabpanel" aria-labelledby={`${uid}-tab-game`} hidden={tab !== 'game'}>
-        {gameOpened && <Suspense fallback={<p className="tl-game-loading" role="status">Przygotowanie toru…</p>}><RaceGame active={tab === 'game'} onImmersiveChange={onImmersiveChange} /></Suspense>}
-      </div>
-
-      <div id="na-zyletki" role="tabpanel" aria-labelledby={`${uid}-tab-attack`} hidden={tab !== 'attack'}>
-        {attackOpened && <Suspense fallback={<p className="tl-game-loading" role="status">Przygotowanie sprintu na czas…</p>}><TimeAttackGame active={tab === 'attack'} onImmersiveChange={onAttackImmersiveChange} /></Suspense>}
-      </div>
-
-      <main id="track-limits" className="tl-main" role="tabpanel" aria-labelledby={`${uid}-tab-info`} hidden={tab !== 'info'}>
+    <div style={{ '--tl-signal': color } as CSSProperties}>
         <div className="tl-intro">
           <div>
             <h1>Biała linia należy do <span>toru.</span></h1>
@@ -371,10 +425,9 @@ export default function TrackLimitsInfographic() {
 
         <footer className="tl-footer"><div><span className="tl-footer-label">ŹRÓDŁA FIA</span><a href={SOURCES.regulations} target="_blank" rel="noreferrer">Regulamin 2026 · B1.8.6 <ExternalLink size={11} /></a><a href={SOURCES.penalties} target="_blank" rel="noreferrer">Taryfikator kar <ExternalLink size={11} /></a><a href={SOURCES.driving} target="_blank" rel="noreferrer">Standardy jazdy <ExternalLink size={11} /></a></div><button type="button" onClick={resetAll}><RotateCcw size={13} /> Zresetuj symulację</button></footer>
         <p className="tl-disclaimer">Niezależny materiał edukacyjny. Regulamin: Issue 09, 01.10.2026 · Wytyczne: v01 · Weryfikacja: 04.11.2026. Komunikaty są symulacją, nie transmisją FIA.</p>
-      </main>
     </div>
   );
-}
+});
 
 function MiniTrack({ count }: { count: number }) {
   return <svg viewBox="0 0 53 28" width="53" height="28" aria-hidden="true"><path d="M0 15H53" stroke="#565664" strokeWidth="1" /><path d="M0 18H53" stroke="#55515a" strokeWidth="3" strokeDasharray="5 5" />{[[14, 5], [32, 5], [14, 22], [32, 22]].map(([x, y], i) => <rect key={i} x={x} y={y} width="7" height="4" rx="1" fill={i >= 4 - count ? '#c67b80' : '#b9c1c9'} />)}<path d="M10 12H43" stroke="#8d8d9a" strokeWidth="3" /></svg>;
@@ -385,7 +438,7 @@ function BlackWhiteFlag() {
 }
 
 const STYLES = `
-.tl [hidden]{display:none!important}.tl-page-tabs{max-width:1312px;margin:0 auto;display:flex;gap:28px;border-bottom:1px solid #343440;min-height:62px}.tl-page-tabs>button{display:flex;align-items:center;gap:9px;border:0;border-bottom:3px solid transparent;background:none;padding:17px 2px 14px;color:#b9b9c8;font-size:14px;font-weight:700;min-height:56px;white-space:nowrap}.tl-page-tabs>button[aria-selected="true"]{color:#fff;border-bottom-color:#ef3937}.tl-page-tabs>button[aria-selected="true"]>svg{color:#ff6863}.tl-page-tabs>button>span{font:9px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.06em;color:#f4cf6a;margin-left:3px}.tl-game-loading{max-width:1312px;margin:40px auto!important;color:#b9b9c8}.tl-page-tabs>button:focus-visible{outline:2px solid #f4cf6a;outline-offset:3px}@media(max-width:1392px){.tl-page-tabs{margin:0 40px}}@media(max-width:760px){.tl-page-tabs{margin:0 20px;gap:24px}.tl-page-tabs>button{font-size:14px}.tl-page-tabs>button>span{display:none}}@media(max-width:540px){.tl-page-tabs{margin:0 16px;gap:8px;display:grid;grid-template-columns:.8fr 1fr 1.15fr}.tl-page-tabs>button{font-size:12px;gap:5px;white-space:normal;min-width:0;line-height:1.3;text-align:left;min-height:64px}.tl-page-tabs>button>svg{width:14px;height:14px;flex-shrink:0}}
+.tl [hidden]{display:none!important}.tl-page-tabs{max-width:1312px;margin:0 auto;display:flex;align-items:stretch;gap:28px;border-bottom:1px solid #343440;min-height:62px}.tl-page-tabs>button{display:flex;align-items:center;gap:9px;border:0;border-bottom:3px solid transparent;background:none;padding:17px 2px 14px;color:#b9b9c8;font-size:14px;font-weight:700;min-height:56px;white-space:nowrap;touch-action:manipulation}.tl-page-tabs>button[aria-selected="true"],.tl-page-tabs>button[data-pending="true"]{color:#fff;border-bottom-color:#ef3937}.tl-page-tabs>button[aria-selected="true"] svg,.tl-page-tabs>button[data-pending="true"] svg{color:#ff6863}.tl-tab-icon{width:18px;height:18px;display:grid;place-items:center;flex:0 0 18px;align-self:center}.tl-tab-icon svg{grid-area:1/1;display:block;width:16px;height:16px}.tl-tab-icon-timer svg{transform:translateY(-1px) scale(1.12)}.tl-tab-flag{transform:scale(1.28);transform-origin:center}.tl-tab-icon.is-pending svg{visibility:hidden}.tl-tab-icon.is-pending:before{content:"";grid-area:1/1;width:14px;height:14px;border-radius:50%;border:2px solid #3a3a48;border-top-color:#ff6863;animation:tl-spin .7s linear infinite}.tl-tab-label{min-width:0;font:inherit;letter-spacing:inherit;color:inherit}.tl-tab-loading{min-height:min(560px,68vh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:48px 20px;color:#d7d7e4;text-align:center}.tl-tab-loading p{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3b4}.tl-tab-loading strong{font-size:22px;font-weight:750;letter-spacing:-.03em}.tl-tab-spinner{width:28px;height:28px;border-radius:50%;border:3px solid #3a3a48;border-top-color:#ef3937;animation:tl-spin .7s linear infinite}@keyframes tl-spin{to{transform:rotate(360deg)}}.tl-page-tabs>button:focus-visible{outline:2px solid #f4cf6a;outline-offset:3px}@media(max-width:1392px){.tl-page-tabs{margin:0 40px}}@media(max-width:760px){.tl-page-tabs{margin:0 20px;gap:24px}.tl-page-tabs>button{font-size:14px}}@media(max-width:540px){.tl-page-tabs{margin:0 10px;gap:0;display:flex;align-items:stretch}.tl-page-tabs>button{container-type:inline-size;flex:1 1 0;flex-direction:column;align-items:center;justify-content:flex-start;min-width:0;gap:6px;line-height:1.15;text-align:center;min-height:0;padding:10px 2px 8px}.tl-page-tabs>button>.tl-tab-label{display:flex;align-items:center;justify-content:center;width:100%;min-height:2.4em;font-size:clamp(11px,9.2cqi,13px);line-height:1.2;letter-spacing:-.02em;text-align:center}.tl-tab-label>span{min-width:0;max-width:100%;text-wrap:balance}.tl-tab-icon{width:16px;height:16px;flex:0 0 16px}.tl-tab-icon svg{width:16px;height:16px}}@container(min-width:104px){.tl-page-tabs>button>.tl-tab-label{min-height:0;white-space:nowrap}.tl-tab-label>span{white-space:nowrap;text-wrap:nowrap}}
 .tl{--tl-bg:#0f0f14;--tl-panel:#15151e;--tl-border:#2b2b38;--tl-text:#f3f3f7;--tl-muted:#a5a5b4;--tl-red:#e10600;color:var(--tl-text);font-family:"Titillium Web","Arial Narrow","Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.5;color-scheme:dark;min-width:300px}
 .tl *{box-sizing:border-box}.tl-main h1,.tl-main h2,.tl h3,.tl p{margin:0}.tl button,.tl input,.tl a{-webkit-tap-highlight-color:transparent}.tl :where(button,input){font:inherit}.tl button{cursor:pointer}.tl button{color:inherit}.tl a{color:inherit;text-decoration:none}.tl button:focus-visible,.tl a:focus-visible,.tl input:focus-visible,.tl summary:focus-visible{outline:2px solid #f4cf6a;outline-offset:4px}.tl ::selection{background:#e10600;color:#fff}.tl{scrollbar-color:#474755 #15151e}.tl button{transition:background-color .18s,color .18s,border-color .18s}.tl button:disabled{opacity:.45;cursor:not-allowed}.tl button svg{flex-shrink:0}.tl a:hover{color:#fff}.tl a:hover svg{color:#ff6b66}.tl-mobile-zones{display:none}
 .tl-race-rules{padding-bottom:17px;margin-bottom:18px;border-bottom:1px solid #343442}.tl-race-rules h3{font-size:16px;font-weight:700;line-height:1.4;letter-spacing:-.2px}.tl-race-rules p{font-size:11px;line-height:1.7;color:#b8b8c7;margin-top:7px}.tl-race-rules ol{list-style:none;margin:13px 0;padding:0;display:grid;gap:7px}.tl-race-rules li{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;align-items:baseline;font-size:11px;color:#dedee8;line-height:1.5}.tl-race-rules li>span:first-child{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#bebecd}.tl-race-rules .tl-rule-warning>span{color:#f4cf6a}.tl-race-rules .tl-rule-penalty>span{color:#ff858a}.tl-race-rules .tl-rules-example{font-size:10px;color:#c5c5d3}.tl-race-rules>a{display:flex;align-items:center;gap:6px;width:fit-content;font-size:9px;color:#bcbccc;margin-top:9px;text-decoration:underline;text-underline-offset:3px}
