@@ -1,3 +1,4 @@
+import { SNACK_ITEMS, type SnackKind } from './time-attack-snacks.ts';
 import { ghostAt, type AttackRace, type AttackRecord } from './time-attack-engine.ts';
 import { LOOP_TYRES, LOOP_WHITE_INSET, LOOP_WHITE_WIDTH } from './track-limits.ts';
 import { BARRIER, BRAKING_MARKERS, CHECKPOINTS, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, trackPoint } from './time-attack-track.ts';
@@ -75,6 +76,14 @@ export function renderAttack(ctx: CanvasRenderingContext2D, w: number, h: number
     ctx.fillStyle = '#edcd79'; ctx.fillRect(-0.7, -1.7, 1.4, 3.4);
     ctx.fillStyle = '#393b30'; ctx.fillRect(-0.35, -0.95, 0.7, 1.9); ctx.restore();
   }
+  if (race.snacks) {
+    SNACK_ITEMS.forEach((item, i) => {
+      if (race.snacks!.collected[i] || item.s < begin || item.s > end) return;
+      const p = trackPoint(item.s, item.x);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(camera.angle);
+      drawSnack(ctx, item.kind); ctx.restore();
+    });
+  }
   if (record) {
     const ghost = ghostAt(record.trace, race.time);
     if (ghost && Math.abs(ghost.s - race.s) < 180) drawCar(ctx, ghost.s, ghost.x, ghost.heading, '#76dce2', 0.4, false);
@@ -104,4 +113,26 @@ export function trackMapPath(): string {
   const minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
   const scale = Math.min(260 / (maxX - minX), 250 / (maxY - minY));
   return points.map((p, i) => `${i ? 'L' : 'M'}${((p.x - (minX + maxX) / 2) * scale + 150).toFixed(1)},${((p.y - (minY + maxY) / 2) * scale + 150).toFixed(1)}`).join(' ') + ' Z';
+}
+
+const snackImages: Partial<Record<SnackKind, HTMLImageElement>> = {};
+function drawSnack(ctx: CanvasRenderingContext2D, kind: SnackKind) {
+  if (!snackImages[kind] && typeof Image !== 'undefined') {
+    const image = new Image();
+    image.src = `${import.meta.env?.BASE_URL ?? '/'}game/${kind}-sprite.png`;
+    snackImages[kind] = image;
+  }
+  const image = snackImages[kind], gold = kind === 'specjal' ? '#f4cf6a' : '#f2ad79';
+  ctx.fillStyle = '#142119'; ctx.beginPath(); ctx.ellipse(0, 0, 2, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = gold; ctx.lineWidth = 0.22; ctx.stroke();
+  if (image?.complete && image.naturalWidth > 0) {
+    const height = 5.5, width = height * image.naturalWidth / image.naturalHeight;
+    ctx.drawImage(image, -width / 2, -height, width, height);
+  } else {
+    // A legible letter token keeps the item collectible when its image fails.
+    ctx.fillStyle = '#17251e'; ctx.fillRect(-1.3, -3.7, 2.6, 3.2);
+    ctx.strokeStyle = gold; ctx.strokeRect(-1.3, -3.7, 2.6, 3.2);
+    ctx.fillStyle = gold; ctx.font = 'bold 2.1px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(kind === 'specjal' ? 'S' : 'K', 0, -1.4);
+  }
 }

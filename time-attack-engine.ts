@@ -1,4 +1,5 @@
 import { loopAllTyresOutside, observeTrackLimits, penaltyForOffences } from './track-limits.ts';
+import { advanceSnacks, collectSnacks, createSnacks, snackPace, SNACK_RULES_VERSION, type AttackMode, type SnackState } from './time-attack-snacks.ts';
 import { BARRIER, CAR_HALF, CHECKPOINTS, curvatureAt, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, TRACK_VERSION } from './time-attack-track.ts';
 
 export const ATTACK_STEP = 1 / 120;
@@ -9,10 +10,13 @@ export function medalFor(time: number): 'gold' | 'silver' | 'bronze' | null {
   return time <= MEDALS.gold ? 'gold' : time <= MEDALS.silver ? 'silver' : time <= MEDALS.bronze ? 'bronze' : null;
 }
 export const ATTACK_RECORD_KEY = 'f1-w-punkt:time-attack:loop-record:v2';
+export const SNACK_RECORD_KEY = 'f1-w-punkt:time-attack:snacks-record:v1';
+export const attackRecordKey = (mode: AttackMode) => mode === 'snacks' ? SNACK_RECORD_KEY : ATTACK_RECORD_KEY;
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export type AttackInput = { steer: number; brake: boolean };
 export type GhostFrame = { t: number; s: number; x: number; heading: number };
 export type AttackRace = {
+  mode: AttackMode; snacks: SnackState | null;
   time: number; s: number; x: number; heading: number; speed: number; groundSpeed: number; steering: number;
   braking: boolean; offroad: boolean; understeer: boolean; finished: boolean;
   checkpoint: number; sectors: number[]; hits: number; hitCooldown: number;
@@ -20,12 +24,14 @@ export type AttackRace = {
   offences: number; penalty: number; outside: boolean;
 };
 export type AttackRecord = {
+  mode?: 'snacks'; rules?: string;
   version: number; track: string; drivingTime: number; result: number;
   penalty: number; offences: number; sectors: number[]; trace: GhostFrame[];
 };
 
-export function createAttack(): AttackRace {
-  return { time: 0, s: 0, x: 0, heading: 0, speed: 18, groundSpeed: 0, steering: 0, braking: false,
+export function createAttack(mode: AttackMode = 'classic'): AttackRace {
+  return { mode, snacks: mode === 'snacks' ? createSnacks() : null,
+    time: 0, s: 0, x: 0, heading: 0, speed: 18, groundSpeed: 0, steering: 0, braking: false,
     offroad: false, understeer: false, finished: false, checkpoint: 0, sectors: [], hits: 0,
     hitCooldown: 0, event: '', eventUntil: 0, trace: [{ t: 0, s: 0, x: 0, heading: 0 }], samplePeriod: 0.05,
     offences: 0, penalty: 0, outside: false };
@@ -39,13 +45,15 @@ export function stepAttack(race: AttackRace, input: AttackInput, dt = ATTACK_STE
   if (race.finished || !Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, 1 / 30);
   const previousS = race.s, previousX = race.x, previousTime = race.time;
+  if (race.snacks) advanceSnacks(race.snacks, dt);
   race.time += dt;
   race.hitCooldown = Math.max(0, race.hitCooldown - dt);
   const steer = Number.isFinite(input.steer) ? clamp(input.steer, -1, 1) : 0;
   race.steering += (steer - race.steering) * Math.min(1, dt * 16);
   race.braking = input.brake;
   race.offroad = Math.abs(race.x) + CAR_HALF > ROAD_HALF;
-  const targetSpeed = input.brake ? 5 : race.offroad ? 13 : 34;
+  const pace = race.snacks ? snackPace(race.snacks, race.offroad) : 1;
+  const targetSpeed = input.brake ? 5 : (race.offroad ? 13 : 34) * pace;
   race.speed += clamp(targetSpeed - race.speed, -dt * (input.brake ? 28 : 14), dt * 8);
   const curve = curvatureAt(race.s);
   const forward = Math.max(0.2, Math.cos(race.heading)) * race.speed / Math.max(0.7, 1 - curve * race.x);
@@ -80,6 +88,7 @@ export function stepAttack(race: AttackRace, input: AttackInput, dt = ATTACK_STE
     if (gate === TRACK_LENGTH) { race.s = TRACK_LENGTH; race.time = crossing; race.finished = true; }
   }
   race.groundSpeed = Math.hypot(race.s - previousS, race.x - previousX) / dt;
+  if (race.snacks) collectSnacks(race.snacks, previousS, previousX, race.s, race.x);
   const last = race.trace[race.trace.length - 1];
   if (race.finished || race.time - last.t >= race.samplePeriod - 1e-8) {
     race.trace.push({ t: race.time, s: race.s, x: race.x, heading: race.heading });
@@ -115,12 +124,13 @@ export function attackResult(race: { time: number; penalty: number }): number {
 
 export function recordFromRace(race: AttackRace): AttackRecord {
   return {
+    ...(race.mode === 'snacks' ? { mode: 'snacks' as const, rules: SNACK_RULES_VERSION } : {}),
     version: PHYSICS_VERSION, track: TRACK_VERSION, drivingTime: race.time, result: attackResult(race),
     penalty: race.penalty, offences: race.offences, sectors: [...race.sectors], trace: race.trace.map(f => ({ ...f })),
   };
 }
 
-export function parseAttackRecord(raw: string | null): AttackRecord | null {
+export function parseAttackRecord(raw: string | null, mode: AttackMode = 'classic'): AttackRecord | null {
   try {
     if (!raw || raw.length > 4_000_000) return null;
     const data = JSON.parse(raw) as AttackRecord;
@@ -128,6 +138,7 @@ export function parseAttackRecord(raw: string | null): AttackRecord | null {
       || !Number.isInteger(data.offences) || data.offences < 0 || data.penalty !== penaltyForOffences(data.offences)
       || !Number.isFinite(data.result) || Math.abs(data.result - (data.drivingTime + data.penalty)) > 1e-6
       || !Array.isArray(data.sectors) || data.sectors.length !== 3 || !Array.isArray(data.trace) || data.trace.length < 2 || data.trace.length > 12001) return null;
+    if (mode === 'snacks' ? data.mode !== 'snacks' || data.rules !== SNACK_RULES_VERSION : data.mode !== undefined || data.rules !== undefined) return null;
     let t = -1, s = -1;
     for (const frame of data.trace) {
       if (!frame || ![frame.t, frame.s, frame.x, frame.heading].every(Number.isFinite) || frame.t <= t || frame.s < s

@@ -1,0 +1,18 @@
+{
+  "tool": "built-in image_gen",
+  "useCase": "background-extraction",
+  "date": "2026-11-05",
+  "derivative": "sips -Z 256; PNG alpha preserved",
+  "assets": {
+    "specjal": {
+      "original": "snacks-source/specjal.jpg",
+      "sprite": "specjal-sprite.png",
+      "prompt": "Use case: background-extraction. Edit target: the provided image. Create a transparent-background game sprite by removing ONLY the dark background around the Specjal beer can. Preserve the entire subject, exact silhouette, colors, pixel art texture, packaging text and design unchanged. One upright centered object, tightly framed with a small transparent margin. Actual alpha transparency, no checkerboard, no shadow, no other objects."
+    },
+    "kebab": {
+      "original": "snacks-source/kebab.jpg",
+      "sprite": "kebab-sprite.png",
+      "prompt": "Use case: background-extraction. Edit target: the provided image. Create a transparent-background game sprite by removing ONLY the dark background around the rollo kebab. Preserve the entire subject, exact silhouette, colors, pixel art texture, packaging text and design unchanged. One upright centered object, tightly framed with a small transparent margin. Actual alpha transparency, no checkerboard, no shadow, no other objects."
+    }
+  }
+}

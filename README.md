@@ -22,7 +22,7 @@ Zainstaluj `lucide-react`; aplikacja potrzebuje React i Tailwind CSS. Skopiuj ra
 
 - `TrackLimitsInfographic.tsx` — główny komponent i osadzone style `.tl`.
 - `RaceGame.tsx`, `race-engine.ts`, `race-track.ts`, `race-renderer.ts`, `race-gesture.ts` oraz `race-game.css` — leniwie ładowana gra, obsługa gestów i style `.rg`.
-- `TimeAttackGame.tsx`, `TimeAttackPreview.tsx`, `time-attack-engine.ts`, `time-attack-track.ts`, `time-attack-renderer.ts` oraz `time-attack.css` — niezależnie ładowana gra „Przemek Racing”, jej demonstracja menu i style `.ta`.
+- `TimeAttackGame.tsx`, `TimeAttackPreview.tsx`, `time-attack-engine.ts`, `time-attack-track.ts`, `time-attack-renderer.ts`, `time-attack-snacks.ts` oraz `time-attack.css` — niezależnie ładowana gra „Przemek Racing”, jej opcjonalny tryb przedmiotów, demonstracja menu i style `.ta`.
 - `track-labels.ts` — wspólne nazwy wyświetlane Pętla Morena i Morena Sprint oraz lokalizacja Gdańsk Morena.
 - `public/game/driver.png` i `public/game/driver.provenance.json` — lokalna grafika kierowcy oraz jej pełny prompt i pochodzenie.
 
@@ -95,7 +95,7 @@ Powyższe sprawdzenia „Przemek Racing 3D” nie potwierdzają działania na fi
 
 ### Weryfikacja „Przemek Racing”
 
-`npm test` uruchamia 55 testów Node: 23 testy gry 3D i gestów, 18 testów próby czasowej oraz 14 testów limitów toru. Testy próby czasowej obejmują zamknięcie pozycji i stycznej toru, najkrótszy obrót kamery, czas referencyjny i medale, przewagę hamowania, zgodność symulacji przy renderowaniu 30/60/120 klatek/s, współpracę skrętu i hamulca, pobocze i bariery, bramki, sektory, ducha oraz walidację zapisu. Testy limitów obejmują kontakt ostatniej opony z linią, obrócony bolid, obie strony toru, długi wyjazd i powrót, sekwencję kar, medal, rekord, ducha, pozycję i punkty sprintu oraz jednorazowe rozliczenie. `npm run build` sprawdza TypeScript i tworzy produkcyjny build.
+`npm test` uruchamia 64 testy Node: 23 testy gry 3D i gestów, 18 testów klasycznej próby czasowej, 9 testów trybu „Specjal i kebab” oraz 14 testów limitów toru. Testy próby czasowej obejmują zamknięcie pozycji i stycznej toru, najkrótszy obrót kamery, czas referencyjny i medale, przewagę hamowania, zgodność symulacji przy renderowaniu 30/60/120 klatek/s, współpracę skrętu i hamulca, pobocze i bariery, bramki, sektory, ducha oraz walidację zapisu. Testy dodatku obejmują osiem stałych pozycji, zbieranie i omijanie bez wykroczeń, efekty, głód, reset oraz izolację rekordów. Testy limitów obejmują kontakt ostatniej opony z linią, obrócony bolid, obie strony toru, długi wyjazd i powrót, sekwencję kar, medal, rekord, ducha, pozycję i punkty sprintu oraz jednorazowe rozliczenie. `npm run build` sprawdza TypeScript i tworzy produkcyjny build.
 
 Opcjonalny test przeglądarkowy wymaga lokalnie zainstalowanego Playwright oraz jego przeglądarek Chromium i WebKit. Przy działającym `npm run dev` na porcie 5173 uruchom w drugim terminalu:
 
@@ -112,3 +112,17 @@ Przegląd końcowy `artifacts/time-attack/morena-finish-review.md` ma werdykt **
 To automatyczna weryfikacja w emulacji przeglądarek. Nie przeprowadzono testu na fizycznym telefonie, w rzeczywistym Safari iOS lub Chrome Android ani przejazdu sterowanego przez człowieka; nie zmierzono stałych 60 klatek/s na urządzeniu.
 
 Po ujednoliceniu nazwy ERS przechodzi 39 testów Node, kompilacja produkcyjna i kontrola białych znaków w diffie. Chromium: sprawdzono gotowość, aktywny ERS, nagrodę +18 ERS i ładowanie przy 568×320, 844×390 oraz 1440×900; etykiety mieszczą się w kontrolkach, pola dotykowe mają minimum 48 px. Dotknięcie, przytrzymanie dłuższe niż 1,6 s i Spacja uruchamiają ERS. Stan ładowania sprawdzono przez testową odpowiedź modułu z początkową energią 8, bez zmiany dostarczanej symulacji. Detektor Impeccable nie zgłosił uwag. Zrzuty i raport: `artifacts/ers/`.
+
+## Opcjonalny tryb „Specjal i kebab”
+
+Dotyczy wyłącznie **Przemek Racing**, próby czasowej na Pętli Morena. Tryb włącza się przełącznikiem w menu; domyślnie jest wyłączony. Przemek Racing 3D pozostaje bez zmian. Cztery Specjale i cztery kebaby działają od razu po najechaniu i nie odradzają się. Leżą na przemian po obu stronach bezpiecznego korytarza asfaltu, na prostych oraz wyjściach z zakrętów: kebaby na 40, 600, 760 i 1020 m, a Specjale na 220, 440, 890 i 1180 m. Jazda środkiem pozwala świadomie ominąć każdy przedmiot bez opuszczania asfaltu. Pozycje, liczby i wartości efektów pochodzą z jednej konfiguracji w `time-attack-snacks.ts`.
+
+Specjal podnosi docelową prędkość na asfalcie o 20% na 5 s i rozmywa tylko canvas toru o 3 px przez 3 s. Kebab zeruje głód, ale obniża docelową prędkość o 15% na 4 s. Głód dochodzi do 100% po 45 s jazdy: ostrzega przy 70%, a od 80% stopniowo ogranicza docelową prędkość do 60% normalnej. Pełny głód nie kończy próby. Efekty mnożą się, ponowny Specjal odnawia czas, a hamowanie i kolizje zachowują pierwszeństwo. Pauza i odliczanie zatrzymują liczniki; powtórka je resetuje.
+
+Tryb ma osobny rekord i ducha pod kluczem `f1-w-punkt:time-attack:snacks-record:v1`, z identyfikatorem zasad `specjal-kebab-v2`. Zmiana rozmieszczenia unieważnia duchy zapisane według poprzednich zasad. Rekord zachowuje czas jazdy, kary za limity toru i oficjalny wynik, ale nie stosuje klasycznych progów medalowych. Wolniejszy wynik nie zastępuje najlepszego ducha; blokada pamięci zachowuje rekord sesji. Klasyczny rekord oraz rekord 3D są niezależne. Demonstracja menu nadal prezentuje klasyczną fizykę.
+
+Grafiki `public/game/specjal-sprite.png` i `public/game/kebab-sprite.png` powstały wbudowanym Imagegen przez wycięcie tła z dostarczonych grafik, a następnie zostały zmniejszone do 256 px. Oryginały są w `public/game/snacks-source/`; dokładne prompty i pochodzenie w `public/game/snacks.provenance.json`. Awaria obrazów zastępuje je literowymi znacznikami S/K, bez blokowania zbiórki.
+
+Podgląd uruchamia się na wolnym porcie przez `npm run dev -- --port <PORT> --strictPort`. Dodatkowy test przeglądarkowy: `TEST_URL=http://127.0.0.1:<PORT> node tests/time-attack-snacks-browser.mjs`; opcjonalne `PLAYWRIGHT_MODULE` wskazuje instalację Playwright. Raport i obrazy trafiają do `artifacts/snacks/`.
+
+Weryfikacja dodatku: 64/64 testy Node, kompilacja produkcyjna, 53/53 kontrole klasycznej próby w Chromium/WebKit oraz 27/27 kontroli dodatku w Chromium. Sprawdzono pełny przejazd ze zbiórką 4/4 i 4/4, przejazd omijający wszystkie osiem przedmiotów bez wyjazdu, krytyczny głód, pauzę i odliczanie, powtórkę, kary, osobne rekordy i duchy, zachowanie klasycznych rekordów, blokadę pamięci, awarię sprite’ów oraz widoki 320–1440 px i poziom 844×390. To automatyczna emulacja; nie zastępuje testu na fizycznym telefonie ani pomiaru stałych 60 FPS na urządzeniu.
