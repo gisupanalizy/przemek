@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ATTACK_STEP, createAttack, stepAttack, referenceInput, REFERENCE_TIME, ghostAt, ghostTimeAt, recordFromRace, parseAttackRecord, medalFor, MEDALS, formatTime } from '../time-attack-engine.ts';
-import { BARRIER, CAR_HALF, CHECKPOINTS, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, curvatureAt, trackPoint } from '../time-attack-track.ts';
+import { BARRIER, CAR_HALF, CHECKPOINTS, CORNERS, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, TRACK_VERSION, curvatureAt, trackPoint } from '../time-attack-track.ts';
+import { followAttackCamera, trackMapPath } from '../time-attack-renderer.ts';
 
 function drive(braking = true) {
   const race = createAttack();
@@ -94,6 +95,50 @@ test('track tangent and lateral offsets share the exact road normal', () => {
     assert.ok(Math.abs(a.curve - curvatureAt(s)) < 1e-8);
   }
   assert.ok(SECTOR_ENDS.every(s => CHECKPOINTS.includes(s)));
+});
+test('the circuit closes at the same position, heading and road edges without a seam', () => {
+  for (const lateral of [-BARRIER, -ROAD_HALF, 0, ROAD_HALF, BARRIER]) {
+    const start = trackPoint(0, lateral), finish = trackPoint(TRACK_LENGTH, lateral);
+    assert.ok(Math.hypot(finish.x - start.x, finish.y - start.y) < 1e-8);
+    assert.ok(Math.abs(finish.angle - start.angle - Math.PI * 2) < 1e-8);
+    assert.equal(finish.curve, start.curve);
+    for (const offset of [-30, -0.001, 0.001, 30]) {
+      const a = trackPoint(offset, lateral), b = trackPoint(TRACK_LENGTH + offset, lateral);
+      assert.ok(Math.hypot(a.x - b.x, a.y - b.y) < 1e-7);
+      assert.ok(Math.abs(a.angle + Math.PI * 2 - b.angle) < 1e-7);
+    }
+  }
+  assert.equal(CORNERS.length, 6); assert.ok(CORNERS.some(c => c.curve < 0));
+});
+test('loop geometry has continuous distance, usable bend radii and no crossing road sections', () => {
+  for (let s = 0; s < TRACK_LENGTH; s++) {
+    const a = trackPoint(s), b = trackPoint(s + 1);
+    assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - 1) < 0.01);
+    assert.ok(Math.abs(a.curve) * BARRIER < 1, 'barriers must not fold inside a corner');
+  }
+  for (let a = 0; a < TRACK_LENGTH; a += 8) for (let b = a + 56; b < TRACK_LENGTH; b += 8) {
+    if (TRACK_LENGTH - (b - a) < 56) continue;
+    const first = trackPoint(a), second = trackPoint(b);
+    assert.ok(Math.hypot(first.x - second.x, first.y - second.y) > BARRIER * 2, 'non-adjacent road sections overlap');
+  }
+});
+test('an open-course ghost cannot become the loop record, and the start alone cannot finish a lap', () => {
+  const race = createAttack();
+  assert.equal(race.finished, false); assert.equal(race.checkpoint, 0);
+  const record = recordFromRace(drive());
+  assert.equal(record.track, TRACK_VERSION);
+  assert.equal(parseAttackRecord(JSON.stringify({ ...record, track: 'riviera-six-v1' })), null);
+});
+test('retrying a complete lap does not spin the camera and the map is a closed path', () => {
+  const camera = { angle: Math.PI * 2 };
+  followAttackCamera(camera, 0, 1 / 60, false);
+  assert.ok(Math.abs(camera.angle - Math.PI * 2) < 1e-9);
+  const previous = camera.angle;
+  followAttackCamera(camera, 0.1, 1 / 60, false);
+  assert.ok(camera.angle > previous && camera.angle < previous + 0.1);
+  followAttackCamera(camera, 0.1, 1 / 60, true);
+  assert.ok(Math.abs(camera.angle - Math.PI * 2 - 0.1) < 1e-9);
+  assert.ok(trackMapPath().endsWith(' Z'));
 });
 test('a slow driver can continue beyond 60 seconds, and invalid input cannot poison physics', () => {
   const race = createAttack();

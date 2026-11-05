@@ -161,21 +161,21 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
       : <button onClick={() => { setImageFailed(false); setImageAttempt(n => n + 1); }}>Wczytaj portret</button>}
   </div>;
 
-  return <section ref={root} className={`ta ${immersive ? 'ta-immersive' : ''}`} aria-label="Na żyletki — sprint na czas">
+  return <section ref={root} className={`ta ${immersive ? 'ta-immersive' : ''}`} aria-label="Przemek Racing — jedno okrążenie na czas">
     {!immersive && <div className="ta-intro">
-      <div className="ta-intro-copy"><h1>Na <span>żyletki.</span></h1><p className="ta-lead">Sześć zakrętów. Dwa kciuki.<br />Każda setna należy do Ciebie.</p>
-        <p className="ta-description">Hamuj przed zakrętem, znajdź swoją linię i wyjdź szybciej. Potem spróbuj pokonać własnego ducha.</p>
+      <div className="ta-intro-copy"><h1>Przemek <span>Racing</span></h1><p className="ta-lead">Sześć zakrętów. Jedno okrążenie.<br />Każda setna należy do Ciebie.</p>
+        <p className="ta-description">Start i meta w tym samym miejscu. Hamuj przed zakrętem, znajdź swoją linię i pokonaj ducha najlepszego okrążenia.</p>
         <button className="ta-primary" onClick={() => start()}><Play size={19} fill="currentColor" /> Jedź na czas <ArrowRight size={18} /></button>
-        <div className="ta-best">Twój rekord <strong>{record ? formatTime(record.time) : 'Pierwszy przejazd przed Tobą'}</strong></div>
-        <a className="ta-compare" href="#gra">Porównaj z grą „Twój sprint” <ArrowRight size={15} /></a>
+        <div className="ta-best">Najlepszy czas na pętli <strong>{record ? formatTime(record.time) : 'Pierwsze okrążenie przed Tobą'}</strong></div>
+        <a className="ta-compare" href="#gra">Zagraj w „Przemek Racing 3D” <ArrowRight size={15} /></a>
       </div>
-      <div className="ta-track-poster"><div className="ta-poster-top"><span>RIVIERA / SPRINT</span><span>1,265 KM</span></div>
-        <svg viewBox="0 0 300 300" role="img" aria-label="Mapa trasy Riviera, sześć naprzemiennych zakrętów"><path d={MAP} className="ta-map-shadow" /><path d={MAP} className="ta-map-road" /><path d={MAP} className="ta-map-line" /></svg>
-        <div className="ta-poster-bottom">{driver(true)}<div><strong>Twój tor. Twoja twarz.</strong><span>WIDOK Z GÓRY · 3 SEKTORY</span></div></div>
+      <div className="ta-track-poster"><div className="ta-poster-top"><span>RIVIERA / PĘTLA</span><span>1,265 KM</span></div>
+        <svg viewBox="0 0 300 300" role="img" aria-label="Zamknięta pętla Riviera: sześć zakrętów, wspólny start i meta"><path d={MAP} className="ta-map-shadow" /><path d={MAP} className="ta-map-road" /><path d={MAP} className="ta-map-line" /></svg>
+        <div className="ta-poster-bottom">{driver(true)}<div><strong>Twój tor. Twoja twarz.</strong><span>START = META · 1 OKRĄŻENIE</span></div></div>
       </div>
       <div className="ta-brief"><div><ArrowLeftRight size={22} /><p><strong>Lewy kciuk prowadzi.</strong><span>Przeciągaj w lewo i prawo. Puszczenie prostuje kierownicę.</span></p></div><div><Pause size={22} /><p><strong>Prawy wyczuwa moment.</strong><span>Przytrzymaj hamulec przed zakrętem. Gaz działa sam.</span></p></div></div>
       <div className="ta-medal-targets" aria-label="Czasy medalowe">{(['gold', 'silver', 'bronze'] as const).map(m => <span key={m} className={`ta-medal-${m}`}><Trophy size={16} />{MEDAL_NAMES[m]} <b>{formatTime(MEDALS[m])}</b></span>)}</div>
-      <p className="ta-key-hint">Na komputerze: ← → lub A D — skręt, ↓ lub Spacja — hamulec, P — pauza. Rekord i duch zapisują się tylko w tej przeglądarce.</p>
+      <p className="ta-key-hint">Duch to Twój najlepszy przejazd zapisany w tej przeglądarce. Wolniejsze okrążenie go nie zastępuje. Na komputerze: ← → lub A D — skręt, ↓ lub Spacja — hamulec, P — pauza.</p>
     </div>}
 
     <div className="ta-stage" hidden={!immersive} inert={phase !== 'racing'}>
@@ -184,7 +184,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
         <button className="ta-icon-button" aria-label="Wstrzymaj grę" onClick={pause}><Pause size={21} /></button>
       </header>
       <div className="ta-road"><canvas ref={canvas} role="img" aria-label="Tor widziany z góry. Kieruj lewym kciukiem lub strzałkami, hamuj prawym kciukiem lub strzałką w dół." />
-        <div className="ta-road-top"><div className="ta-sector-label">SEKTOR {Math.min(3, hud.sectors.length + 1)} / 3 <span>{Math.min(100, Math.floor(hud.s / TRACK_LENGTH * 100))}% TRASY</span></div>{driver()}</div>
+        <div className="ta-road-top"><div className="ta-sector-label">SEKTOR {Math.min(3, hud.sectors.length + 1)} / 3 <span>OKRĄŻENIE 1/1 · {Math.min(100, Math.floor(hud.s / TRACK_LENGTH * 100))}%</span></div>{driver()}</div>
         {corner && <div className={`ta-corner ${corner.distance < 32 ? 'is-near' : ''}`}>{corner.curve > 0 ? <CornerDownRight size={22} /> : <CornerDownLeft size={22} />}<div><strong>{corner.distance ? `${Math.round(corner.distance)} m` : 'ZAKRĘT'} <span>{corner.number}/6</span></strong><small>{corner.distance < 32 ? 'DOBIERZ PRĘDKOŚĆ' : 'PRZYGOTUJ WEJŚCIE'}</small></div></div>}
         <div className={`ta-event ${hud.event.startsWith('KONTAKT') || hud.offroad ? 'is-warning' : ''}`} role="status" aria-live="polite">{hud.event}{hud.event.startsWith('SEKTOR') && splitDelta !== null && <b>{deltaText(splitDelta)}</b>}</div>
         <div className="ta-road-bottom"><button className={`ta-ghost-toggle ${showGhost ? 'is-on' : ''}`} onClick={toggleGhost} aria-pressed={showGhost} aria-label={showGhost ? 'Ukryj ducha rekordu' : 'Pokaż ducha rekordu'}><Ghost size={17} />{showGhost ? 'DUCH WŁ.' : 'DUCH WYŁ.'}</button><span>{hud.offroad ? 'WRÓĆ NA ASFALT' : hud.braking ? 'HAMOWANIE' : hud.understeer ? 'ZA SZYBKO · HAMUJ' : 'GAZ AUTO'}<b>{Math.round(hud.speed * 3.6)}<small> km/h</small></b></span></div>

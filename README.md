@@ -1,6 +1,6 @@
 # Granica jest biała. — limity toru F1 2026
 
-Projekt zawiera infografikę „Limity toru” oraz dwie osobne gry: „Twój sprint” i „Na żyletki”. Punktem wejścia jest **`TrackLimitsInfographic.tsx`**: SVG, logika i style samej infografiki pozostają w tym pliku, natomiast obie gry są niezależnie ładowane przez `React.lazy` z osobnych modułów. Zakładki mają adresy `#track-limits`, `#gra` i `#na-zyletki`; obsługują bezpośrednie linki, historię przeglądarki i nawigację klawiaturą. Lokalny podgląd korzysta z React + Vite + Tailwind CSS.
+Projekt zawiera infografikę „Limity toru” oraz dwie osobne gry: „Przemek Racing” i „Przemek Racing 3D”. Punktem wejścia jest **`TrackLimitsInfographic.tsx`**: SVG, logika i style samej infografiki pozostają w tym pliku, natomiast obie gry są niezależnie ładowane przez `React.lazy` z osobnych modułów. Kolejność zakładek to „Limity toru” (`#track-limits`) → „Przemek Racing” (`#na-zyletki`) → „Przemek Racing 3D” (`#gra`); obsługują bezpośrednie linki, historię przeglądarki i nawigację klawiaturą. Lokalny podgląd korzysta z React + Vite + Tailwind CSS.
 
 ## Uruchomienie podglądu
 
@@ -22,7 +22,7 @@ Zainstaluj `lucide-react`; aplikacja potrzebuje React i Tailwind CSS. Skopiuj ra
 
 - `TrackLimitsInfographic.tsx` — główny komponent i osadzone style `.tl`.
 - `RaceGame.tsx`, `race-engine.ts`, `race-track.ts`, `race-renderer.ts`, `race-gesture.ts` oraz `race-game.css` — leniwie ładowana gra, obsługa gestów i style `.rg`.
-- `TimeAttackGame.tsx`, `time-attack-engine.ts`, `time-attack-track.ts`, `time-attack-renderer.ts` oraz `time-attack.css` — niezależnie ładowana gra „Na żyletki” i style `.ta`.
+- `TimeAttackGame.tsx`, `time-attack-engine.ts`, `time-attack-track.ts`, `time-attack-renderer.ts` oraz `time-attack.css` — niezależnie ładowana gra „Przemek Racing” i style `.ta`.
 - `public/game/driver.png` i `public/game/driver.provenance.json` — lokalna grafika kierowcy oraz jej pełny prompt i pochodzenie.
 
 Sam plik infografiki nie wystarcza do ponownego użycia obecnego komponentu: bundler musi rozwiązać także importy obu gier. W Vite `public/game/driver.png` jest udostępniany pod `${import.meta.env.BASE_URL}game/driver.png`. Przy innym bundlerze dostosuj tę ścieżkę i obsługę `import.meta.env.BASE_URL`; obecny TypeScript używa również `allowImportingTsExtensions`. Podczas gry obraz jest pobierany z tego samego originu co aplikacja; nie są pobierane zewnętrzne obrazy, fonty ani dane. Linki źródłowe FIA otwierają zewnętrzne dokumenty dopiero po wybraniu ich przez użytkownika.
@@ -42,7 +42,7 @@ export default function App() {
 - Kwalifikacje, wyścig oraz trwała przewaga. Licznik obsługuje również więcej niż pięć wykroczeń; każde od czwartego dodaje 5 sekund. Symulator kar jest niezależny od wizualizatora.
 - Obsługa klawiatury, komunikaty `aria-live`, tekstowe odpowiedniki kolorów i `prefers-reduced-motion`.
 
-## Twój sprint
+## Przemek Racing 3D
 
 Gra to 90-sekundowy start lotny z P8 na fikcyjnym torze Riviera arcade. Siedmiu rywali ma własny dystans i pozycję na drodze; wynik P1–P8 wynika z faktycznego postępu. W poziomie tor zajmuje 75% szerokości, a przednia kamera kierowcy 25%. Twarz pozostaje odsłonięta. Zatwierdzona grafika `driver.png` powstała przez Imagegen z dwóch referencji użytkownika: zdjęcia tożsamości i wzorca pixel-artowego kokpitu.
 
@@ -54,17 +54,21 @@ Gra to 90-sekundowy start lotny z P8 na fikcyjnym torze Riviera arcade. Siedmiu 
 
 `race-engine.ts` symuluje ruch stałym krokiem 1/120 s; `race-renderer.ts` rysuje klatki przez `requestAnimationFrame`. Oba korzystają z tej samej definicji drogi i znormalizowanych współrzędnych w `race-track.ts`, dzięki czemu granica fizyki odpowiada geometrii renderowania. `race-gesture.ts` wyznacza względny cel skrętu; silnik realizuje go z normalnymi ograniczeniami przyczepności. Nie ma backendu ani konta.
 
-## Na żyletki
+## Przemek Racing
 
-Osobna próba czasowa pod `#na-zyletki` działa przede wszystkim w pionie i obsługuje też poziom. Stała trasa Riviera ma 1265 m, sześć zakrętów i trzy sektory. Koniec przejazdu wyznacza meta po przejechaniu wszystkich bramek na asfalcie w kolejności; próba może trwać dłużej niż 60 sekund.
+Osobna próba czasowa pod `#na-zyletki` działa przede wszystkim w pionie i obsługuje też poziom. Zamknięty, zaokrąglony tor Riviera o nerkowatym kształcie ma 1265 m, sześć zakrętów (pięć prawych i jeden lewy) oraz trzy sektory. Start i meta leżą w tym samym fizycznym miejscu i mają tę samą styczną. Jedno pełne okrążenie po przejechaniu wszystkich bramek na asfalcie w kolejności kończy próbę; nie ma limitu 60 sekund.
 
 - Lewy kciuk steruje analogowo przez poziome przeciąganie dolnej lewej strefy względem miejsca dotknięcia. Puszczenie prostuje kierownicę. Prawy kciuk przytrzymuje hamulec; gaz działa automatycznie. Niezależne wskaźniki pozwalają jednocześnie skręcać i hamować. Klawiatura: ←/→ lub A/D — skręt, ↓, S lub Spacja — hamulec, P lub Escape — pauza.
-- Wczesne hamowanie i wybór linii pomagają zachować przyczepność. Nadmierna prędkość ogranicza skręt, trawa spowalnia, a bariera odbiera prędkość. Czas referencyjnego kierowcy wynosi 47,234004675 s; progi złota, srebra i brązu to odpowiednio 105%, 115% i 130% tej wartości.
-- Opcjonalny cyjanowy duch odtwarza najlepszy lokalny przejazd z interpolowanych próbek i nie powoduje kolizji. Różnica do rekordu, czasy sektorów i podsumowanie na mecie pomagają znaleźć miejsce do poprawy. „Jeszcze raz” rozpoczyna świeżą próbę z jednosekundowym odliczaniem.
+- Wczesne hamowanie i wybór linii pomagają zachować przyczepność. Nadmierna prędkość ogranicza skręt, trawa spowalnia, a bariera odbiera prędkość. Czas referencyjnego kierowcy wynosi 47,863619334359015 s; progi złota, srebra i brązu to odpowiednio 105%, 115% i 130% tej wartości.
+- Opcjonalny cyjanowy duch odtwarza najlepsze lokalne okrążenie z interpolowanych próbek i nie powoduje kolizji. Wolniejsze okrążenie nie zastępuje rekordu ani jego ducha. Różnica do rekordu, czasy sektorów i podsumowanie na mecie pomagają znaleźć miejsce do poprawy. „Jeszcze raz” rozpoczyna świeżą próbę z jednosekundowym odliczaniem; kamera wybiera najkrótszy obrót, bez pełnego obrotu o 360° przy powtórce.
 - Zmiana zakładki lub orientacji, utrata fokusu i ukrycie strony pauzują próbę oraz zwalniają kontrolki. Powrót wymaga jawnego wznowienia i trzysekundowego odliczania. Pełny ekran nie jest wymagany; nieaktywna gra zatrzymuje pętlę animacji. Każda gra ma osobny stan trybu immersyjnego.
-- Rekord, sektory i ograniczony rozmiarem ślad ducha mają wersję fizyki i trasy. Zapis używa nowego klucza `f1-w-punkt:time-attack:record:v1`, niezależnego od rekordu „Twojego sprintu”. Błędny lub nieaktualny rekord jest pomijany; blokada pamięci nie zatrzymuje gry, a nowy rekord pozostaje w sesji. Nie ma konta ani backendu.
+- Rekord, sektory i ograniczony rozmiarem ślad ducha mają wersję fizyki i trasy. Zapis używa nowego klucza `f1-w-punkt:time-attack:loop-record:v1`, niezależnego od rekordu „Przemek Racing 3D”. Błędny lub nieaktualny rekord jest pomijany; blokada pamięci nie zatrzymuje gry, a nowy rekord pozostaje w sesji. Nie ma konta ani backendu.
 
 `TimeAttackGame.tsx` zarządza interfejsem i sterowaniem, `time-attack-engine.ts` symuluje ruch stałym krokiem 1/120 s, a `time-attack-track.ts` dostarcza wspólną geometrię dla fizyki, mapy i rysowania w `time-attack-renderer.ts`. Gra ponownie wykorzystuje zatwierdzone `driver.png` z zachowanym pochodzeniem; brak obrazu nie blokuje przejazdu, a przycisk pozwala ponowić jego wczytanie.
+
+### Wersja rekordu zamkniętego toru
+
+Tor ma wersję `riviera-loop-v1` i nowy klucz `f1-w-punkt:time-attack:loop-record:v1`. Zamknięta pętla zaczyna z nowym rekordem osobistym: zapis poprzedniej otwartej trasy pod `f1-w-punkt:time-attack:record:v1` pozostaje nietknięty i nie jest przenoszony. Rekord gry „Przemek Racing 3D” również pozostaje niezależny.
 
 ## Źródła i interpretacja
 
@@ -84,11 +88,11 @@ Gra: wszystkie 23 testy Node (15 silnika i 8 gestów/integracji), `npm run build
 
 Po dodaniu gestów sprawdzono przeciąganie wskaźnikiem w Chromium przy 844×390 i 568×320 oraz po wznowieniu przy 1440×900; bolid zmienia kierunek, wskazówka gestu znika, a nitro może pozostać aktywne. Obrót do 390×844 pokazuje instrukcję obrotu i pauzuje grę; powrót do poziomu wymaga jawnego wznowienia. Nie zaobserwowano błędów konsoli ani poziomego przewijania. Kontrolki mają co najmniej 48 px, a kluczowa wskazówka kierunku, dystansu i prędkości co najmniej 11 px przy 568×320. Obrazy tej zmiany w `.impeccable/review/`: `swipe-mobile.jpg`, `swipe-small.jpg`, `swipe-desktop.jpg`; wcześniejszy dowód wyprzedzenia: `overtake-1280.jpg`.
 
-Powyższe sprawdzenia „Twojego sprintu” nie potwierdzają działania na fizycznym telefonie, Safari/WebKit, natywnego wielodotyku ani stałych 60 klatek/s na urządzeniu. Test zgodności symulacji przy różnych częstotliwościach renderowania nie jest pomiarem wydajności fizycznego telefonu.
+Powyższe sprawdzenia „Przemek Racing 3D” nie potwierdzają działania na fizycznym telefonie, Safari/WebKit, natywnego wielodotyku ani stałych 60 klatek/s na urządzeniu. Test zgodności symulacji przy różnych częstotliwościach renderowania nie jest pomiarem wydajności fizycznego telefonu.
 
-### Weryfikacja „Na żyletki”
+### Weryfikacja „Przemek Racing”
 
-`npm test` uruchamia 35 testów Node: 23 dotychczasowe oraz 12 nowych testów próby czasowej. Nowe testy obejmują czas referencyjny i medale, przewagę hamowania, zgodność symulacji przy renderowaniu 30/60/120 klatek/s, współpracę skrętu i hamulca, pobocze i bariery, bramki, sektory, ducha oraz walidację zapisu. `npm run build` sprawdza TypeScript i tworzy produkcyjny build.
+`npm test` uruchamia 39 testów Node: 23 testy gry 3D i gestów oraz 16 testów próby czasowej. Testy próby czasowej obejmują zamknięcie pozycji i stycznej toru, najkrótszy obrót kamery, czas referencyjny i medale, przewagę hamowania, zgodność symulacji przy renderowaniu 30/60/120 klatek/s, współpracę skrętu i hamulca, pobocze i bariery, bramki, sektory, ducha oraz walidację zapisu. `npm run build` sprawdza TypeScript i tworzy produkcyjny build.
 
 Opcjonalny test przeglądarkowy wymaga lokalnie zainstalowanego Playwright oraz jego przeglądarek Chromium i WebKit. Przy działającym `npm run dev` na porcie 5173 uruchom w drugim terminalu:
 
@@ -98,6 +102,6 @@ node tests/time-attack-browser.mjs
 
 Jeżeli Playwright jest zainstalowany poza projektowym `node_modules`, ustaw `PLAYWRIGHT_MODULE` na ścieżkę do zainstalowanego modułu Playwright. Opcjonalne `TEST_URL` zmienia domyślny adres `http://127.0.0.1:5173`.
 
-Raport `artifacts/time-attack/browser-report.json` zawiera 26 zakończonych powodzeniem sprawdzeń i pustą listę błędów. Obejmują trzy zakładki i historię, brak przepełnienia przy 320/390/768/1440 px, kontrolki co najmniej 48 px, sekwencję dwóch palców emulowaną przez Chromium CDP (wspólny skręt i hamulec, zwolnienie hamulca, anulowanie dotyku), pauzę po obrocie, zatrzymanie nieaktywnej pętli, niezależne rekordy oraz pełny kontrolowany przejazd przez UI z wirtualnym zegarem RAF, metą, zapisem, ponowną próbą i przeładowaniem. Desktopowy WebKit z mobilnym viewportem potwierdził współpracę skrętu i hamulca. Zrzuty wejścia, jazdy i mety znajdują się w `artifacts/time-attack/`.
+Raport `artifacts/time-attack/browser-report.json` zawiera 28 zakończonych powodzeniem sprawdzeń i pustą listę błędów. Obejmują nazwy i nową kolejność trzech zakładek, historię, brak przepełnienia przy 320/390/768/1440 px, kontrolki co najmniej 48 px, sekwencję dwóch palców emulowaną przez Chromium CDP (wspólny skręt i hamulec, zwolnienie hamulca, anulowanie dotyku), pauzę po obrocie, zatrzymanie nieaktywnej pętli, niezależne rekordy oraz pełny kontrolowany przejazd przez UI z wirtualnym zegarem RAF, metą, zapisem, ponowną próbą i przeładowaniem. Pełne wolniejsze drugie okrążenie potwierdza, że najlepszy czas i duch pozostają bez zmian. Desktopowy WebKit z mobilnym viewportem potwierdził współpracę skrętu i hamulca. Osiem aktualnych zrzutów wejścia, jazdy i wyników znajduje się w `artifacts/time-attack/`.
 
 To automatyczna weryfikacja w emulacji przeglądarek. Nie przeprowadzono testu na fizycznym telefonie, w rzeczywistym Safari iOS lub Chrome Android ani przejazdu sterowanego przez człowieka; nie zmierzono stałych 60 klatek/s na urządzeniu.

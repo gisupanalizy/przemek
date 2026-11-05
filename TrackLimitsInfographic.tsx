@@ -8,7 +8,7 @@ import {
 const RaceGame = lazy(() => import('./RaceGame'));
 const TimeAttackGame = lazy(() => import('./TimeAttackGame'));
 type PageTab = 'info' | 'game' | 'attack';
-const PAGE_TABS: PageTab[] = ['info', 'game', 'attack'];
+const PAGE_TABS: PageTab[] = ['info', 'attack', 'game'];
 const TAB_HASH: Record<PageTab, string> = { info: '#track-limits', game: '#gra', attack: '#na-zyletki' };
 const tabFromHash = (): PageTab => location.hash === '#na-zyletki' ? 'attack' : location.hash === '#gra' ? 'game' : 'info';
 
@@ -143,14 +143,14 @@ export default function TrackLimitsInfographic() {
       <nav className="tl-page-tabs" role="tablist" aria-label="Wybierz zakładkę" hidden={immersive} onKeyDown={event => {
         if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
           event.preventDefault();
-          const next = event.key === 'Home' ? 'info' : event.key === 'End' ? 'attack'
+          const next = event.key === 'Home' ? 'info' : event.key === 'End' ? 'game'
             : PAGE_TABS[(PAGE_TABS.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : PAGE_TABS.length - 1)) % PAGE_TABS.length];
           selectTab(next); document.getElementById(`${uid}-tab-${next}`)?.focus();
         }
       }}>
         <button id={`${uid}-tab-info`} role="tab" aria-selected={tab === 'info'} aria-controls="track-limits" tabIndex={tab === 'info' ? 0 : -1} onClick={() => selectTab('info')}><Crosshair size={16} /> Limity toru</button>
-        <button id={`${uid}-tab-game`} role="tab" aria-selected={tab === 'game'} aria-controls="gra" tabIndex={tab === 'game' ? 0 : -1} onClick={() => selectTab('game')}><Flag size={16} /> Twój sprint</button>
-        <button id={`${uid}-tab-attack`} role="tab" aria-selected={tab === 'attack'} aria-controls="na-zyletki" tabIndex={tab === 'attack' ? 0 : -1} onClick={() => selectTab('attack')}><Timer size={16} /> Na żyletki</button>
+        <button id={`${uid}-tab-attack`} role="tab" aria-selected={tab === 'attack'} aria-controls="na-zyletki" tabIndex={tab === 'attack' ? 0 : -1} onClick={() => selectTab('attack')}><Timer size={16} /> Przemek Racing</button>
+        <button id={`${uid}-tab-game`} role="tab" aria-selected={tab === 'game'} aria-controls="gra" tabIndex={tab === 'game' ? 0 : -1} onClick={() => selectTab('game')}><Flag size={16} /> Przemek Racing 3D</button>
       </nav>
 
       <div id="gra" role="tabpanel" aria-labelledby={`${uid}-tab-game`} hidden={tab !== 'game'}>
@@ -381,7 +381,7 @@ function BlackWhiteFlag() {
 }
 
 const STYLES = `
-.tl [hidden]{display:none!important}.tl-page-tabs{max-width:1312px;margin:0 auto;display:flex;gap:28px;border-bottom:1px solid #343440;min-height:62px}.tl-page-tabs>button{display:flex;align-items:center;gap:9px;border:0;border-bottom:3px solid transparent;background:none;padding:17px 2px 14px;color:#b9b9c8;font-size:14px;font-weight:700;min-height:56px;white-space:nowrap}.tl-page-tabs>button[aria-selected="true"]{color:#fff;border-bottom-color:#ef3937}.tl-page-tabs>button[aria-selected="true"]>svg{color:#ff6863}.tl-page-tabs>button>span{font:9px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.06em;color:#f4cf6a;margin-left:3px}.tl-game-loading{max-width:1312px;margin:40px auto!important;color:#b9b9c8}.tl-page-tabs>button:focus-visible{outline:2px solid #f4cf6a;outline-offset:3px}@media(max-width:1392px){.tl-page-tabs{margin:0 40px}}@media(max-width:760px){.tl-page-tabs{margin:0 20px;gap:24px}.tl-page-tabs>button{font-size:14px}.tl-page-tabs>button>span{display:none}}@media(max-width:540px){.tl-page-tabs{margin:0 16px;gap:12px;justify-content:space-between}.tl-page-tabs>button{font-size:12px;gap:5px}.tl-page-tabs>button>svg{width:14px;height:14px;flex-shrink:0}}
+.tl [hidden]{display:none!important}.tl-page-tabs{max-width:1312px;margin:0 auto;display:flex;gap:28px;border-bottom:1px solid #343440;min-height:62px}.tl-page-tabs>button{display:flex;align-items:center;gap:9px;border:0;border-bottom:3px solid transparent;background:none;padding:17px 2px 14px;color:#b9b9c8;font-size:14px;font-weight:700;min-height:56px;white-space:nowrap}.tl-page-tabs>button[aria-selected="true"]{color:#fff;border-bottom-color:#ef3937}.tl-page-tabs>button[aria-selected="true"]>svg{color:#ff6863}.tl-page-tabs>button>span{font:9px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.06em;color:#f4cf6a;margin-left:3px}.tl-game-loading{max-width:1312px;margin:40px auto!important;color:#b9b9c8}.tl-page-tabs>button:focus-visible{outline:2px solid #f4cf6a;outline-offset:3px}@media(max-width:1392px){.tl-page-tabs{margin:0 40px}}@media(max-width:760px){.tl-page-tabs{margin:0 20px;gap:24px}.tl-page-tabs>button{font-size:14px}.tl-page-tabs>button>span{display:none}}@media(max-width:540px){.tl-page-tabs{margin:0 16px;gap:8px;display:grid;grid-template-columns:.8fr 1fr 1.15fr}.tl-page-tabs>button{font-size:12px;gap:5px;white-space:normal;min-width:0;line-height:1.3;text-align:left;min-height:64px}.tl-page-tabs>button>svg{width:14px;height:14px;flex-shrink:0}}
 .tl{--tl-bg:#0f0f14;--tl-panel:#15151e;--tl-border:#2b2b38;--tl-text:#f3f3f7;--tl-muted:#a5a5b4;--tl-red:#e10600;color:var(--tl-text);font-family:"Titillium Web","Arial Narrow","Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.5;color-scheme:dark;min-width:300px}
 .tl *{box-sizing:border-box}.tl-main h1,.tl-main h2,.tl h3,.tl p{margin:0}.tl button,.tl input,.tl a{-webkit-tap-highlight-color:transparent}.tl :where(button,input){font:inherit}.tl button{cursor:pointer}.tl button{color:inherit}.tl a{color:inherit;text-decoration:none}.tl button:focus-visible,.tl a:focus-visible,.tl input:focus-visible,.tl summary:focus-visible{outline:2px solid #f4cf6a;outline-offset:4px}.tl ::selection{background:#e10600;color:#fff}.tl{scrollbar-color:#474755 #15151e}.tl button{transition:background-color .18s,color .18s,border-color .18s}.tl button:disabled{opacity:.45;cursor:not-allowed}.tl button svg{flex-shrink:0}.tl a:hover{color:#fff}.tl a:hover svg{color:#ff6b66}.tl-mobile-zones{display:none}
 .tl-race-rules{padding-bottom:17px;margin-bottom:18px;border-bottom:1px solid #343442}.tl-race-rules h3{font-size:16px;font-weight:700;line-height:1.4;letter-spacing:-.2px}.tl-race-rules p{font-size:11px;line-height:1.7;color:#b8b8c7;margin-top:7px}.tl-race-rules ol{list-style:none;margin:13px 0;padding:0;display:grid;gap:7px}.tl-race-rules li{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;align-items:baseline;font-size:11px;color:#dedee8;line-height:1.5}.tl-race-rules li>span:first-child{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#bebecd}.tl-race-rules .tl-rule-warning>span{color:#f4cf6a}.tl-race-rules .tl-rule-penalty>span{color:#ff858a}.tl-race-rules .tl-rules-example{font-size:10px;color:#c5c5d3}.tl-race-rules>a{display:flex;align-items:center;gap:6px;width:fit-content;font-size:9px;color:#bcbccc;margin-top:9px;text-decoration:underline;text-underline-offset:3px}

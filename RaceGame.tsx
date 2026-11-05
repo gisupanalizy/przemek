@@ -224,10 +224,10 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
   };
   const mustRotate = immersive && portrait;
 
-  return <section ref={root} className={`rg ${immersive ? 'rg-immersive' : ''}`} aria-label="Gra wyścigowa: Twój sprint">
+  return <section ref={root} className={`rg ${immersive ? 'rg-immersive' : ''}`} aria-label="Przemek Racing 3D — wyścig z rywalami">
     {!immersive && <div className="rg-intro">
       <div className="rg-intro-copy">
-        <h1>Teraz <span>Twoja kolej.</span></h1>
+        <h1>Przemek <span>Racing 3D</span></h1>
         <p>Osiem bolidów. Dziewięćdziesiąt sekund.<br />Ty za kierownicą. Do zobaczenia na podium.</p>
         <div className="rg-race-details"><span><Flag size={16} /> SPRINT 90 S</span><span><Smartphone size={16} /> GRAJ W POZIOMIE</span></div>
         <button className="rg-start" onClick={() => start()} disabled={!driverLoaded}><Play size={20} fill="currentColor" />{driverError ? 'Grafika niedostępna' : driverLoaded ? 'Graj' : 'Przygotowanie kokpitu…'}<ArrowRight size={20} /></button>

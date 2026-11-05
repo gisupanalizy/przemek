@@ -2,12 +2,12 @@ import { BARRIER, CAR_HALF, CHECKPOINTS, curvatureAt, ROAD_HALF, SECTOR_ENDS, TR
 
 export const ATTACK_STEP = 1 / 120;
 export const PHYSICS_VERSION = 1;
-export const REFERENCE_TIME = 47.23400467501053;
+export const REFERENCE_TIME = 47.863619334359015;
 export const MEDALS = { gold: REFERENCE_TIME * 1.05, silver: REFERENCE_TIME * 1.15, bronze: REFERENCE_TIME * 1.30 };
 export function medalFor(time: number): 'gold' | 'silver' | 'bronze' | null {
   return time <= MEDALS.gold ? 'gold' : time <= MEDALS.silver ? 'silver' : time <= MEDALS.bronze ? 'bronze' : null;
 }
-export const ATTACK_RECORD_KEY = 'f1-w-punkt:time-attack:record:v1';
+export const ATTACK_RECORD_KEY = 'f1-w-punkt:time-attack:loop-record:v1';
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export type AttackInput = { steer: number; brake: boolean };
 export type GhostFrame = { t: number; s: number; x: number; heading: number };
@@ -129,7 +129,7 @@ export function referenceInput(race: AttackRace, braking = true): AttackInput {
   let safe = 34;
   for (let d = 0; d < 100; d += 3) {
     const curve = Math.abs(curvatureAt(race.s + d));
-    if (curve > 0.001) safe = Math.min(safe, Math.sqrt(7.5 / curve + 2 * 23 * Math.max(0, d - 8)));
+    if (curve > 0.001) safe = Math.min(safe, Math.sqrt(8.5 / curve + 2 * 23 * Math.max(0, d - 8)));
   }
   const feedforward = curvatureAt(race.s + 3) * race.speed / yawLimit(race.speed);
   return { steer: clamp(feedforward - race.heading * 3.5 - race.x * 0.13, -1, 1), brake: braking && race.speed > safe + 0.3 };

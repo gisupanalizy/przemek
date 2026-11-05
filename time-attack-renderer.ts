@@ -1,11 +1,16 @@
 import { ghostAt, type AttackRace, type AttackRecord } from './time-attack-engine.ts';
-import { BARRIER, CHECKPOINTS, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, trackPoint } from './time-attack-track.ts';
+import { BARRIER, BRAKING_MARKERS, CHECKPOINTS, ROAD_HALF, SECTOR_ENDS, TRACK_LENGTH, trackPoint } from './time-attack-track.ts';
 
 export type AttackCamera = { angle: number };
+export function followAttackCamera(camera: AttackCamera, target: number, dt: number, reduced: boolean) {
+  // 0 and 2π face the same way: retries must not rotate the camera a full turn.
+  const difference = Math.atan2(Math.sin(target - camera.angle), Math.cos(target - camera.angle));
+  camera.angle += difference * (reduced ? 1 : Math.min(1, Math.max(dt, 1 / 120) * 7));
+}
 export function renderAttack(ctx: CanvasRenderingContext2D, w: number, h: number, race: AttackRace,
   record: AttackRecord | null, camera: AttackCamera, dt: number, reduced: boolean) {
   const center = trackPoint(race.s);
-  camera.angle += (center.angle - camera.angle) * (reduced ? 1 : Math.min(1, Math.max(dt, 1 / 120) * 7));
+  followAttackCamera(camera, center.angle, dt, reduced);
   const scale = Math.max(3.2, Math.min(w / 46, h / 70, 9));
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#42614b'; ctx.fillRect(0, 0, w, h);
@@ -18,7 +23,8 @@ export function renderAttack(ctx: CanvasRenderingContext2D, w: number, h: number
     for (let s = begin; s <= end; s += 3) { const p = trackPoint(s, offset); if (s === begin) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
   };
   // Fixed trackside scenery: every attempt has exactly the same surroundings.
-  for (let s = Math.floor(begin / 15) * 15; s < end; s += 15) {
+  for (let s = 0; s < TRACK_LENGTH; s += 15) {
+    if (![s - TRACK_LENGTH, s, s + TRACK_LENGTH].some(v => v >= begin && v <= end)) continue;
     for (const side of [-1, 1]) {
       const p = trackPoint(s, side * (17 + Math.sin(s * 0.31) * 5));
       ctx.fillStyle = '#304b3c'; ctx.fillRect(p.x - 2.2, p.y - 1, 5, 5);
@@ -43,11 +49,11 @@ export function renderAttack(ctx: CanvasRenderingContext2D, w: number, h: number
     path(side * BARRIER); ctx.strokeStyle = '#d4d8cf'; ctx.lineWidth = 0.4; ctx.stroke();
     path(side * (ROAD_HALF - 0.13)); ctx.strokeStyle = '#d9ddce'; ctx.lineWidth = 0.12; ctx.stroke();
   }
-  for (const s of CHECKPOINTS) {
+  for (const s of [0, ...CHECKPOINTS]) {
     if (s < begin || s > end) continue;
     const p = trackPoint(s);
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
-    if (s === TRACK_LENGTH) {
+    if (s === 0 || s === TRACK_LENGTH) {
       for (let col = 0; col < 14; col++) for (let row = 0; row < 2; row++) {
         ctx.fillStyle = (col + row) % 2 ? '#1b2026' : '#f1eddb'; ctx.fillRect(-7 + col, -row, 1, 1);
       }
@@ -61,7 +67,7 @@ export function renderAttack(ctx: CanvasRenderingContext2D, w: number, h: number
     ctx.restore();
   }
   // Braking markers preview each of the six turns without choosing a line.
-  for (const s of [115, 305, 485, 655, 870, 1045]) {
+  for (const s of BRAKING_MARKERS) {
     if (s < begin || s > end) continue;
     const p = trackPoint(s, -ROAD_HALF - 1.5);
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
@@ -96,5 +102,5 @@ export function trackMapPath(): string {
   const minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
   const minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
   const scale = Math.min(260 / (maxX - minX), 250 / (maxY - minY));
-  return points.map((p, i) => `${i ? 'L' : 'M'}${((p.x - (minX + maxX) / 2) * scale + 150).toFixed(1)},${((p.y - (minY + maxY) / 2) * scale + 150).toFixed(1)}`).join(' ');
+  return points.map((p, i) => `${i ? 'L' : 'M'}${((p.x - (minX + maxX) / 2) * scale + 150).toFixed(1)},${((p.y - (minY + maxY) / 2) * scale + 150).toFixed(1)}`).join(' ') + ' Z';
 }

@@ -17,6 +17,7 @@ const requests = []; page.on('request', req => requests.push(req.url()));
 await page.goto(`${base}/#na-zyletki`); await page.locator('.ta-primary').first().waitFor();
 check('direct link opens new game and does not fetch the old game', !requests.some(url => url.includes('/RaceGame.tsx')));
 check('three accessible tabs', await page.getByRole('tab').count() === 3);
+check('game names and order match the new branding', JSON.stringify((await page.getByRole('tab').allTextContents()).map(t => t.trim())) === JSON.stringify(['Limity toru', 'Przemek Racing', 'Przemek Racing 3D']));
 await page.evaluate(() => localStorage.setItem('f1-w-punkt:sprint-record:v2', JSON.stringify({ score: 4242, position: 3 })));
 await page.screenshot({ path: `${dir}/mobile-intro.png`, fullPage: true });
 for (const width of [320, 390, 768, 1440]) {
@@ -27,12 +28,13 @@ await page.setViewportSize({ width: 1440, height: 900 });
 await page.screenshot({ path: `${dir}/desktop-intro.png`, fullPage: true });
 await page.getByRole('tab', { name: 'Limity toru', exact: true }).click();
 await page.getByRole('tab', { name: 'Limity toru', exact: true }).press('ArrowRight');
-check('arrow key moves to old game', page.url().endsWith('#gra'));
-await page.getByRole('tab', { name: 'Twój sprint', exact: true }).press('End');
-check('End selects new game', page.url().endsWith('#na-zyletki'));
-await page.goBack(); await page.waitForURL('**/#gra');
-check('browser back selects old game', await page.getByRole('tab', { name: 'Twój sprint', exact: true }).getAttribute('aria-selected') === 'true');
-await page.goForward(); await page.waitForURL('**/#na-zyletki');
+check('arrow key moves to Przemek Racing first', page.url().endsWith('#na-zyletki'));
+await page.getByRole('tab', { name: 'Przemek Racing', exact: true }).press('End');
+check('End selects Przemek Racing 3D', page.url().endsWith('#gra'));
+await page.goBack(); await page.waitForURL('**/#na-zyletki');
+check('browser back selects the loop game', await page.getByRole('tab', { name: 'Przemek Racing', exact: true }).getAttribute('aria-selected') === 'true');
+await page.goForward(); await page.waitForURL('**/#gra');
+await page.getByRole('tab', { name: 'Przemek Racing', exact: true }).click();
 await page.setViewportSize({ width: 390, height: 844 });
 await page.getByRole('button', { name: 'Jedź na czas' }).click();
 await page.getByRole('button', { name: 'Rozumiem, jadę' }).click();
@@ -105,7 +107,7 @@ const box = await finishPage.locator('.ta-steer').boundingBox();
 const origin = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] });
 await finishPage.exposeFunction('captureTurn', async () => { await finishPage.screenshot({ path: `${dir}/mobile-corner.png` }); });
-const completed = await finishPage.evaluate(async origin => {
+const driveUI = async ({ origin, slow = false }) => {
   const { referenceInput } = await import('/time-attack-engine.ts');
   const node = document.querySelector('.ta-steer'), radius = Math.max(36, Math.min(68, node.clientWidth * 0.32));
   // Test-only telemetry reader. The driver never mutates game state: it sends
@@ -120,9 +122,10 @@ const completed = await finishPage.evaluate(async origin => {
     }
   }
   if (!realRace) throw new Error('Could not read test telemetry');
-  let braking = false, captured = false;
+  let braking = false, captured = slow;
   for (let i = 0; i < 15000 && !realRace.finished; i++) {
     const input = referenceInput(realRace);
+    if (slow && realRace.time < 4) input.brake = true;
     node.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: window.__pointerId, clientX: origin.x + input.steer * radius, clientY: origin.y }));
     if (input.brake !== braking) { node.dispatchEvent(new KeyboardEvent(input.brake ? 'keydown' : 'keyup', { key: 's', bubbles: true })); braking = input.brake; }
     window.__frame();
@@ -133,21 +136,29 @@ const completed = await finishPage.evaluate(async origin => {
   node.dispatchEvent(new KeyboardEvent('keyup', { key: 's', bubbles: true }));
   node.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: window.__pointerId, clientX: origin.x, clientY: origin.y }));
   return { time: realRace.time, finished: realRace.finished, hits: realRace.hits };
-}, origin);
+};
+const completed = await finishPage.evaluate(driveUI, { origin });
 await finishPage.waitForTimeout(100);
 await finishPage.getByRole('button', { name: 'Jeszcze raz' }).waitFor();
 check('complete controlled UI run reaches finish', completed.finished && completed.hits === 0);
 await finishPage.screenshot({ path: `${dir}/mobile-finish.png` });
 check('new record stores replay and three sectors', await finishPage.evaluate(key => { const data = JSON.parse(localStorage.getItem(key)); return data.time > 45 && data.time < 60 && data.sectors.length === 3 && data.trace.length > 500; }, ATTACK_RECORD_KEY));
 check('new record never overwrites old record', await finishPage.evaluate(() => JSON.parse(localStorage.getItem('f1-w-punkt:sprint-record:v2')).score === 4242));
+const savedBest = await finishPage.evaluate(key => localStorage.getItem(key), ATTACK_RECORD_KEY);
 await finishPage.getByRole('button', { name: 'Jeszcze raz' }).click();
 await finishPage.evaluate(() => { for (let i = 0; i < 123; i++) window.__frame(); });
 await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
-check('restart resets time and keeps the ghost', /^0:00\.0\d$/.test(await finishPage.locator('.ta-clock strong').textContent()) && await finishPage.locator('.ta-delta strong').textContent() !== '—');
-await finishPage.getByRole('button', { name: 'Wstrzymaj grę' }).click();
+const retryClock = await finishPage.locator('.ta-clock strong').textContent();
+check('restart resets time and keeps the ghost', retryClock.startsWith('0:00.') && Number(retryClock.slice(5)) < 10 && await finishPage.locator('.ta-delta strong').textContent() !== '—');
+await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] });
+const slower = await finishPage.evaluate(driveUI, { origin, slow: true });
+await finishPage.getByRole('button', { name: 'Jeszcze raz' }).waitFor();
+check('a slower last lap leaves the best time and ghost unchanged', slower.finished && slower.time > completed.time && await finishPage.evaluate(key => localStorage.getItem(key), ATTACK_RECORD_KEY) === savedBest);
+await finishPage.screenshot({ path: `${dir}/mobile-second-finish.png` });
 await finishPage.getByRole('button', { name: 'Wróć do zakładek' }).click();
 await finishPage.reload(); await finishPage.locator('.ta-best strong').waitFor();
-check('record survives reload', !(await finishPage.locator('.ta-best strong').textContent()).includes('Pierwszy'));
+check('record survives reload', !(await finishPage.locator('.ta-best strong').textContent()).includes('Pierwsze'));
 await finishContext.close(); await browser.close();
 
 let safari;
