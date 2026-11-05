@@ -12,6 +12,7 @@ type RecordScore = { score: number; position: number };
 type ButtonControl = 'left' | 'right' | 'brake' | 'boost';
 const RECORD_KEY = 'f1-w-punkt:sprint-record:v2';
 const DRIVER = `${import.meta.env.BASE_URL}game/driver.png`;
+const MENU_DRIVER = `${import.meta.env.BASE_URL}game/driver-menu.jpg`;
 
 function readRecord(): RecordScore | null {
   try {
@@ -38,6 +39,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
   const [storageFailed, setStorageFailed] = useState(false);
   const [portrait, setPortrait] = useState(() => matchMedia('(orientation: portrait)').matches);
   const [driverLoaded, setDriverLoaded] = useState(false);
+  const [menuFailed, setMenuFailed] = useState(false);
   const [driverError, setDriverError] = useState(false);
   const [driverAttempt, setDriverAttempt] = useState(0);
   const [countdown, setCountdown] = useState(3);
@@ -234,7 +236,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
         <button className="rg-start" onClick={() => start()} disabled={!driverLoaded}><Play size={20} fill="currentColor" />{driverError ? 'Grafika niedostępna' : driverLoaded ? 'Graj' : 'Przygotowanie kokpitu…'}<ArrowRight size={20} /></button>
         <p className="rg-local-record">{record ? <>Twój rekord: <strong>{record.score.toLocaleString('pl-PL')} pkt</strong> · P{record.position}</> : 'Startujesz z P8. Skończ na podium.'}</p>
       </div>
-      <div className="rg-intro-photo"><img src={DRIVER} alt="Ty w czerwonym kombinezonie za kierownicą bolidu, w stylistyce pixel art" /><div><span>KAMERA KIEROWCY</span><b>GŁÓWNA ROLA: TY</b></div></div>
+      <div className="rg-intro-photo"><img src={menuFailed ? DRIVER : MENU_DRIVER} alt={menuFailed ? 'Ty w czerwonym kombinezonie za kierownicą bolidu, w stylistyce pixel art' : 'Ty w czerwonym kombinezonie za kierownicą, z rollo kebabem na kierownicy i puszką Specjala obok, w stylistyce pixel art'} onError={() => setMenuFailed(true)} /><div><span>KAMERA KIEROWCY</span><b>GŁÓWNA ROLA: TY</b></div></div>
     </div>}
 
     <div className="rg-stage" aria-label="Tor i kamera kierowcy">
@@ -258,10 +260,10 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
         </div>
         <div className="rg-course-label"><span className="rg-live-dot" /> {TRACK_NAMES.sprint} · {TRACK_LOCATION}</div>
         {immersive && <div className={`rg-corner-cue ${hud.tooFast ? 'is-danger' : hud.nextDistance < 160 ? 'is-braking-zone' : ''}`}>
-          {hud.nextDistance < 190 ? <>{hud.nextTurn < 0 ? <ArrowLeft size={25} /> : <ArrowRight size={25} />}<div><strong>{hud.inCorner ? hud.cornerName : `${hud.nextTurn < 0 ? 'LEWY' : 'PRAWY'} ZA ${hud.nextDistance} M`}</strong><span>{hud.tooFast ? 'HAMUJ!' : hud.inCorner ? 'CEL' : 'HAMUJ DO'} {hud.cornerSpeed} KM/H</span></div></> : <><Zap size={22} /><div><strong>PROSTA · ATAKUJ</strong><span>{hud.slipstream ? 'CIEŃ AERO · WYPRZEDZAJ' : 'NITRO NA PROSTEJ'}</span></div></>}
+          {hud.nextDistance < 190 ? <>{hud.nextTurn < 0 ? <ArrowLeft size={25} /> : <ArrowRight size={25} />}<div><strong>{hud.inCorner ? hud.cornerName : `${hud.nextTurn < 0 ? 'LEWY' : 'PRAWY'} ZA ${hud.nextDistance} M`}</strong><span>{hud.tooFast ? 'HAMUJ!' : hud.inCorner ? 'CEL' : 'HAMUJ DO'} {hud.cornerSpeed} KM/H</span></div></> : <><Zap size={22} /><div><strong>PROSTA · ATAKUJ</strong><span>{hud.slipstream ? 'CIEŃ AERO · WYPRZEDZAJ' : 'UŻYJ ERS NA PROSTEJ'}</span></div></>}
         </div>}
         {phase === 'racing' && <div className={`rg-event ${hud.offroad || hud.gripRecovery ? 'is-warning' : ''}`} role="status" aria-live="polite">{hud.gripRecovery ? 'POŚLIZG · ODZYSKAJ PRZYCZEPNOŚĆ' : hud.offroad ? 'POBOCZE · WRÓĆ NA ASFALT' : hud.event || (hud.slipstream ? 'CIEŃ AERODYNAMICZNY · +PRĘDKOŚĆ' : '')}</div>}
-        <div className="rg-speed"><Gauge size={17} /><strong>{hud.speed}</strong><span>KM/H</span>{hud.boost && <b>NITRO</b>}</div>
+        <div className="rg-speed"><Gauge size={17} /><strong>{hud.speed}</strong><span>KM/H</span>{hud.boost && <b>ERS AKTYWNY</b>}</div>
         <div className="rg-steering" role="group" aria-label="Skręcanie">
           <button aria-label="Skręć w lewo, przytrzymaj" disabled={phase !== 'racing'} {...holdButton('left')}><ArrowLeft /></button>
           <button aria-label="Skręć w prawo, przytrzymaj" disabled={phase !== 'racing'} {...holdButton('right')}><ArrowRight /></button>
@@ -278,8 +280,8 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
 
         </div>
         <div className="rg-right-controls">
-          <div className="rg-fuel"><span>ERS / NITRO <b>{Math.round(hud.fuel)}%</b></span><div role="progressbar" aria-label="Zapas nitro" aria-valuenow={Math.round(hud.fuel)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${hud.fuel}%` }} /></div></div>
-          <div className="rg-pedals"><button className={`rg-brake ${hud.braking ? 'is-active' : ''}`} disabled={phase !== 'racing'} aria-label="Hamulec, przytrzymaj" {...holdButton('brake')}><span className="rg-brake-icon" aria-hidden="true" />{hud.braking ? 'HAMUJESZ' : 'HAMULEC'}</button><button className={`rg-boost ${hud.boost ? 'is-active' : ''}`} aria-pressed={hud.boost} aria-disabled={hud.gripRecovery || hud.offroad || hud.fuel < 8 && !hud.boost} disabled={phase !== 'racing'} aria-label="Nitro, dotknij lub przytrzymaj" {...holdButton('boost')}><Zap size={21} fill="currentColor" />{hud.gripRecovery ? 'POŚLIZG' : hud.offroad ? 'NA ASFALT' : hud.boost ? 'NITRO!' : hud.fuel < 8 ? 'ŁADOWANIE' : 'NITRO'}</button></div>
+          <div className="rg-fuel"><span>ENERGIA ERS <b>{Math.round(hud.fuel)}%</b></span><div role="progressbar" aria-label="Energia ERS" aria-valuenow={Math.round(hud.fuel)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${hud.fuel}%` }} /></div></div>
+          <div className="rg-pedals"><button className={`rg-brake ${hud.braking ? 'is-active' : ''}`} disabled={phase !== 'racing'} aria-label="Hamulec, przytrzymaj" {...holdButton('brake')}><span className="rg-brake-icon" aria-hidden="true" />{hud.braking ? 'HAMUJESZ' : 'HAMULEC'}</button><button className={`rg-boost ${hud.boost ? 'is-active' : ''}`} aria-pressed={hud.boost} aria-disabled={hud.gripRecovery || hud.offroad || hud.fuel < 8 && !hud.boost} disabled={phase !== 'racing'} aria-label="ERS, dotknij lub przytrzymaj" {...holdButton('boost')}><Zap size={21} fill="currentColor" /><span>{hud.gripRecovery ? 'POŚLIZG' : hud.offroad ? 'NA ASFALT' : hud.boost ? 'ERS AKTYWNY' : hud.fuel < 8 ? 'ŁADOWANIE' : 'ERS'}</span></button></div>
         </div>
       </aside>
 
@@ -292,7 +294,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
       {immersive && phase === 'racing' && <button className="rg-exit" onClick={pause}><ChevronLeft size={15} /><span>MENU</span></button>}
     </div>
 
-    {!immersive && <div className="rg-how-to"><div><h2>Hamuj przed. Atakuj po.</h2><p>Przesuwaj palec w lewo lub w prawo po torze. Bolid podąża za ruchem; po puszczeniu palca przestajesz skręcać. Drugim kciukiem możesz jednocześnie hamować lub używać nitro. Czytaj wskazówki i hamuj przed zakrętem, żeby zachować przyczepność. Na prostej złap cień aerodynamiczny rywala i zaatakuj z nitro. Czyste wyprzedzanie i dobre wyjście z zakrętu odnawiają ERS.</p></div><div className="rg-keyboard"><span>NA KOMPUTERZE</span><p><kbd>←</kbd><kbd>→</kbd> skręt <kbd>↓</kbd> hamulec<br /><kbd>Spacja</kbd> nitro <kbd>P</kbd> pauza</p><button onClick={() => start(false)} disabled={!driverLoaded}><Maximize2 size={16} /> Graj w oknie</button></div></div>}
+    {!immersive && <div className="rg-how-to"><div><h2>Hamuj przed. Atakuj po.</h2><p>Przesuwaj palec w lewo lub w prawo po torze. Bolid podąża za ruchem; po puszczeniu palca przestajesz skręcać. Drugim kciukiem możesz jednocześnie hamować lub używać ERS. ERS daje dodatkową moc, zużywając zgromadzoną energię. Czytaj wskazówki i hamuj przed zakrętem, żeby zachować przyczepność. Na prostej złap cień aerodynamiczny rywala i zaatakuj z ERS. Czyste wyprzedzanie i dobre wyjście z zakrętu odnawiają energię ERS.</p></div><div className="rg-keyboard"><span>NA KOMPUTERZE</span><p><kbd>←</kbd><kbd>→</kbd> skręt <kbd>↓</kbd> hamulec<br /><kbd>Spacja</kbd> ERS <kbd>P</kbd> pauza</p><button onClick={() => start(false)} disabled={!driverLoaded}><Maximize2 size={16} /> Graj w oknie</button></div></div>}
   </section>;
 }
 

@@ -33,7 +33,7 @@ test('fixed-step simulation gives identical outcomes at 30, 60 and 120 render fp
   assert.deepEqual(outcomes[0], outcomes[1]); assert.deepEqual(outcomes[1], outcomes[2]);
 });
 
-test('multi-control input combines steering and nitro; fuel is bounded and brake wins', () => {
+test('multi-control input combines steering and ERS; fuel is bounded and brake wins', () => {
   const race = createRace(); race.speed = 79;
   advance(race, 0.25, { ...emptyControls(), right: true, boost: true });
   assert.ok(race.x > 0); assert.ok(race.speed > 79); assert.ok(race.fuel < 100);
@@ -44,7 +44,7 @@ test('multi-control input combines steering and nitro; fuel is bounded and brake
   assert.ok(race.fuel >= 0); assert.equal(race.boost, false);
 });
 
-test('grass slows the car, cancels a combo and cannot give nitro', () => {
+test('grass slows the car, cancels a combo and cannot give ERS', () => {
   const race = createRace(); race.x = 1.4; race.speed = 79; race.combo = 3;
   advance(race, 0.4, { ...emptyControls(), right: true, boost: true });
   assert.ok(race.speed < 79); assert.equal(race.combo, 0); assert.equal(race.boost, false);
@@ -72,7 +72,7 @@ test('a clean pass earns points, combo and fuel; contact passes do not', () => {
   stepRace(race, emptyControls(), FIXED_STEP); assert.equal(race.cleanPasses, 1);
 });
 
-test('a short nitro tap keeps accelerating after pointer release', () => {
+test('a short ERS tap keeps accelerating after pointer release', () => {
   const race = createRace(); race.rivals.forEach(r => r.distance += 500); race.speed = 88;
   triggerBoost(race); advance(race, 0.5);
   assert.equal(race.boost, true); assert.ok(race.speed >= 117);
@@ -131,7 +131,7 @@ test('physics edge and the visible road use identical coordinates at every viewp
   }
 });
 
-test('a single nitro tap passes two real opponents within three seconds', () => {
+test('a single ERS tap passes two real opponents within three seconds', () => {
   const race = createRace(); triggerBoost(race); advance(race, 3);
   assert.ok(position(race) <= 6); assert.ok(race.cleanPasses >= 2);
   assert.ok(race.rivals[0].distance < race.distance);

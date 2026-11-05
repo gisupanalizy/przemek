@@ -136,7 +136,7 @@ export function stepRace(race: Race, input: Controls, delta: number): void {
       race.combo += 1;
       race.bestCombo = Math.max(race.bestCombo, race.combo);
       race.fuel = Math.min(100, race.fuel + 18);
-      race.event = race.combo > 1 ? `CZYSTA SERIA ×${race.combo} · +18 NITRO` : 'CZYSTE WYPRZEDZENIE · +18 NITRO';
+      race.event = race.combo > 1 ? `CZYSTA SERIA ×${race.combo} · +18 ERS` : 'CZYSTE WYPRZEDZENIE · +18 ERS';
       race.eventTime = 2;
     }
   }

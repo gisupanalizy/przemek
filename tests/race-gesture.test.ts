@@ -48,7 +48,7 @@ test('short swipes work at both phone widths and large swipes stay bounded', () 
   }
 });
 
-test('swipe target follows normal physics while the second finger uses nitro', () => {
+test('swipe target follows normal physics while the second finger uses ERS', () => {
   const swipe = new SwipeSteering(); const race = createRace();
   race.rivals.forEach(rival => { rival.distance += 1000; });
   swipe.begin(1, 200, 0, 426); swipe.move(1, 145);

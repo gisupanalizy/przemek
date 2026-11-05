@@ -10,6 +10,7 @@ import './time-attack.css';
 
 type Phase = 'ready' | 'tutorial' | 'countdown' | 'racing' | 'paused' | 'finished';
 const DRIVER = `${import.meta.env.BASE_URL}game/driver.png`;
+const MENU_DRIVER = `${import.meta.env.BASE_URL}game/driver-menu.jpg`;
 const TUTORIAL_KEY = 'f1-w-punkt:time-attack:tutorial:v1';
 const MAP = trackMapPath();
 const MEDAL_NAMES = { gold: 'Złoto', silver: 'Srebro', bronze: 'Brąz' };
@@ -30,6 +31,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
   const [countdown, setCountdown] = useState(3), countdownRef = useRef(3);
   const [newRecord, setNewRecord] = useState(false), [storageFailed, setStorageFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false), [imageAttempt, setImageAttempt] = useState(0);
+  const [menuFailed, setMenuFailed] = useState(false);
   const [steerHeld, setSteerHeld] = useState(false);
   const steeringPointer = useRef<{ id: number; origin: number; radius: number } | null>(null);
   const brakePointers = useRef(new Set<number>()), keys = useRef(new Set<string>());
@@ -159,7 +161,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
   const losses = best ? sectorSplits.map((t, i) => t - (best.sectors[i] - (best.sectors[i - 1] ?? 0))) : [];
   const worst = losses.length === 3 && Math.max(...losses) > 0 ? losses.indexOf(Math.max(...losses)) + 1 : null;
   const driver = (size: 'small' | 'large' | 'hero' | 'countdown' = 'small') => <div className={`ta-driver ta-driver-${size} ${hud.event.startsWith('KONTAKT') ? 'is-hit' : newRecord ? 'is-record' : ''}`}>
-    {!imageFailed ? <img key={imageAttempt} src={DRIVER} alt="Twój portret w czerwonym kombinezonie kierowcy" onError={() => setImageFailed(true)} />
+    {!imageFailed ? <img key={size === 'hero' ? 'menu' : imageAttempt} src={size === 'hero' && !menuFailed ? MENU_DRIVER : DRIVER} alt={size === 'hero' && !menuFailed ? 'Ty w czerwonym kombinezonie za kierownicą, z rollo kebabem na kierownicy i puszką Specjala obok' : 'Twój portret w czerwonym kombinezonie kierowcy'} onError={() => { if (size === 'hero') setMenuFailed(true); else setImageFailed(true); }} />
       : size === 'countdown' ? <span className="ta-portrait-fallback">Portret niedostępny</span>
       : <button onClick={() => { setImageFailed(false); setImageAttempt(n => n + 1); }}>Wczytaj portret</button>}
   </div>;
