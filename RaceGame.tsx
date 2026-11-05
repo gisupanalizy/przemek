@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ArrowLeft, ArrowRight, ChevronLeft, Flag, Gauge, Maximize2, Pause, Play, RotateCcw, Smartphone, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronLeft, Flag, Gauge, Maximize2, Pause, Play, RotateCcw, Smartphone, Trophy, Zap } from 'lucide-react';
 import { createRace, emptyControls, FIXED_STEP, position, RACE_SECONDS, score, stepRace, triggerBoost, type Controls, type Race } from './race-engine';
 import { renderRace } from './race-renderer';
 import { OFFROAD_LIMIT, trackAt } from './race-track';
+import { SwipeSteering } from './race-gesture';
 import './race-game.css';
 
 type Phase = 'ready' | 'orient' | 'countdown' | 'racing' | 'paused' | 'finished';
 type RecordScore = { score: number; position: number };
+type ButtonControl = 'left' | 'right' | 'brake' | 'boost';
 const RECORD_KEY = 'f1-w-punkt:sprint-record:v2';
 const DRIVER = `${import.meta.env.BASE_URL}game/driver.png`;
 
@@ -24,8 +26,10 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
   const race = useRef(createRace());
   const phaseRef = useRef<Phase>('ready');
   const controls = useRef<Controls>(emptyControls());
-  const pointerControls = useRef(new Map<number, keyof Controls>());
+  const pointerControls = useRef(new Map<number, ButtonControl>());
   const keyControls = useRef(new Set<string>());
+  const swipe = useRef(new SwipeSteering());
+  const [hasSwiped, setHasSwiped] = useState(false);
   const [phase, setPhase] = useState<Phase>('ready');
   const [hud, setHud] = useState(() => snapshot(race.current));
   const [record, setRecord] = useState(readRecord);
@@ -42,6 +46,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
   const changePhase = useCallback((next: Phase) => { phaseRef.current = next; setPhase(next); }, []);
   const releaseControls = useCallback(() => {
     pointerControls.current.clear(); keyControls.current.clear(); controls.current = emptyControls();
+    swipe.current.reset();
     race.current.boost = false; race.current.boostTime = 0;
   }, []);
   const syncControls = useCallback(() => {
@@ -52,6 +57,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
       right: values.includes('right') || keys.has('ArrowRight') || keys.has('d'),
       brake: values.includes('brake') || keys.has('ArrowDown') || keys.has('s'),
       boost: values.includes('boost') || keys.has(' ') || keys.has('Shift'),
+      steerTarget: swipe.current.target,
     };
   }, []);
   const pause = useCallback(() => {
@@ -75,7 +81,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
 
   const start = (fullscreen = true) => {
     if (!driverLoaded) return;
-    race.current = createRace(); setHud(snapshot(race.current)); setNewRecord(false);
+    race.current = createRace(); setHud(snapshot(race.current)); setNewRecord(false); setHasSwiped(false);
     if (fullscreen) void requestGameScreen();
     if (matchMedia('(orientation: portrait)').matches) changePhase('orient');
     else beginCountdown();
@@ -134,6 +140,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
       if (event.key === 'Escape' || event.key.toLowerCase() === 'p') { if (!event.repeat) pause(); return; }
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       if (supported.includes(key) && phaseRef.current === 'racing') {
+        if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(key)) swipe.current.reset();
         event.preventDefault(); keyControls.current.add(key); syncControls();
         if ((key === ' ' || key === 'Shift') && !event.repeat) triggerBoost(race.current);
       }
@@ -190,10 +197,11 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, [active, changePhase, releaseControls]);
 
-  const holdButton = (control: keyof Controls) => ({
+  const holdButton = (control: ButtonControl) => ({
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       if (phaseRef.current !== 'racing') return;
       event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+      if (control === 'left' || control === 'right') swipe.current.reset();
       pointerControls.current.set(event.pointerId, control); syncControls();
       if (control === 'boost') triggerBoost(race.current);
     },
@@ -209,6 +217,11 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
     onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
     onClick: () => { if (control === 'boost' && phaseRef.current === 'racing') triggerBoost(race.current); },
   });
+  const endSwipe = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!swipe.current.end(event.pointerId)) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    syncControls();
+  };
   const mustRotate = immersive && portrait;
 
   return <section ref={root} className={`rg ${immersive ? 'rg-immersive' : ''}`} aria-label="Gra wyścigowa: Twój sprint">
@@ -224,8 +237,19 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
     </div>}
 
     <div className="rg-stage" aria-label="Tor i kamera kierowcy">
-      <div className="rg-track">
-        <canvas ref={canvas} aria-label="Tor wyścigowy widziany zza bolidu. Steruj przyciskami lub strzałkami klawiatury." />
+      <div className="rg-track"
+        onPointerDown={event => {
+          if (phaseRef.current !== 'racing' || event.button !== 0 || (event.target as Element).closest('button, a, input')) return;
+          if (!swipe.current.begin(event.pointerId, event.clientX, race.current.x, event.currentTarget.getBoundingClientRect().width)) return;
+          event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); syncControls();
+        }}
+        onPointerMove={event => {
+          if (phaseRef.current !== 'racing' || !swipe.current.move(event.pointerId, event.clientX)) return;
+          event.preventDefault(); if (!hasSwiped) setHasSwiped(true); syncControls();
+        }}
+        onPointerUp={endSwipe} onPointerCancel={endSwipe} onLostPointerCapture={endSwipe}
+        onContextMenu={event => { if (phaseRef.current === 'racing') event.preventDefault(); }}>
+        <canvas ref={canvas} aria-label="Tor wyścigowy widziany zza bolidu. Przesuwaj palec po torze w lewo lub w prawo, aby skręcać. Możesz też użyć przycisków lub strzałek klawiatury." />
         <div className="rg-hud">
           <div className="rg-position"><span>POZYCJA</span><strong>P{hud.position}<small>/ 8</small></strong></div>
           <div className={`rg-timer ${hud.remaining <= 10 ? 'is-urgent' : ''}`}><span>DO METY</span><strong>{String(Math.floor(hud.remaining / 60)).padStart(2, '0')}:{String(hud.remaining % 60).padStart(2, '0')}</strong></div>
@@ -241,6 +265,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
           <button aria-label="Skręć w lewo, przytrzymaj" disabled={phase !== 'racing'} {...holdButton('left')}><ArrowLeft /></button>
           <button aria-label="Skręć w prawo, przytrzymaj" disabled={phase !== 'racing'} {...holdButton('right')}><ArrowRight /></button>
         </div>
+        {phase === 'racing' && !hasSwiped && hud.remaining > 82 && <div className="rg-swipe-hint"><ArrowLeftRight size={17} /> PRZESUŃ PO TORZE</div>}
         {!immersive && <div className="rg-preview-label">TWÓJ TOR. TWÓJ WYŚCIG.</div>}
       </div>
 
@@ -259,14 +284,14 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
 
       {immersive && (mustRotate || phase === 'orient' || phase === 'countdown' || phase === 'paused' || phase === 'finished') && <div className={`rg-overlay ${phase === 'countdown' && !mustRotate ? 'rg-countdown-overlay' : ''}`}>
         {mustRotate || phase === 'orient' ? <div className="rg-dialog"><Smartphone className="rg-rotate-icon" size={48} /><h2>Obróć telefon</h2><p>Tor po lewej. Ty w kokpicie po prawej.<br />Dwa kciuki. Pełna kontrola.</p><small>Jeśli ekran się nie obraca, wyłącz blokadę obrotu telefonu.</small><button className="rg-secondary" onClick={exit}><ChevronLeft size={17} /> Wróć</button></div>
-          : phase === 'countdown' ? <div className="rg-countdown" role="status" aria-live="polite"><strong key={countdown}>{countdown}</strong><span>{race.current.time > 0 ? 'WRACAMY NA TOR' : 'GAZ JEST AUTOMATYCZNY'}</span></div>
+          : phase === 'countdown' ? <div className="rg-countdown" role="status" aria-live="polite"><strong key={countdown}>{countdown}</strong><span>{race.current.time > 0 ? 'WRACAMY NA TOR' : 'PRZESUWAJ PALEC PO TORZE, ABY SKRĘCAĆ'}</span></div>
           : phase === 'paused' ? <div className="rg-dialog"><Pause size={32} /><h2>Pit stop.</h2><p>Wyścig poczeka. Wracasz do walki?</p><button className="rg-start" onClick={resume}><Play size={18} fill="currentColor" /> Wznów wyścig</button><button className="rg-secondary" onClick={exit}><ChevronLeft size={17} /> Wyjdź do zakładki</button></div>
           : <div className="rg-dialog rg-result"><Trophy size={32} /><h2>{hud.position === 1 ? 'To Twoje podium.' : hud.position <= 3 ? 'Jesteś na podium!' : 'Meta. Jeszcze raz?'}</h2><div className="rg-result-numbers"><div><span>POZYCJA</span><strong>P{hud.position}<small>/8</small></strong></div><div><span>TWÓJ WYNIK</span><strong>{hud.score.toLocaleString('pl-PL')}<small> pkt</small></strong></div></div><p>{hud.cleanPasses} czystych wyprzedzeń · najlepsza seria ×{hud.bestCombo} · kolizje: {hud.hits}</p>{newRecord && <b className="rg-new-record">NOWY REKORD OSOBISTY</b>}{storageFailed && <small>Rekord zostanie tylko na tę sesję — przeglądarka blokuje zapis.</small>}<div className="rg-result-actions"><button className="rg-start" onClick={() => start()}><RotateCcw size={18} /> Jedź ponownie</button><button className="rg-secondary" onClick={exit}>Zakończ</button></div></div>}
       </div>}
       {immersive && phase === 'racing' && <button className="rg-exit" onClick={pause}><ChevronLeft size={15} /><span>MENU</span></button>}
     </div>
 
-    {!immersive && <div className="rg-how-to"><div><h2>Hamuj przed. Atakuj po.</h2><p>Czytaj wskazówki zakrętów i hamuj przed wejściem. Zbyt duża prędkość oznacza podsterowność i wyjazd na pobocze. Na prostej złap cień aerodynamiczny rywala, wyjdź obok i dotknij nitro. Czyste wyprzedzanie oraz dobre wyjście z zakrętu odnawiają ERS. Rywale także hamują i kontratakują.</p></div><div className="rg-keyboard"><span>NA KOMPUTERZE</span><p><kbd>←</kbd><kbd>→</kbd> skręt <kbd>↓</kbd> hamulec<br /><kbd>Spacja</kbd> nitro <kbd>P</kbd> pauza</p><button onClick={() => start(false)} disabled={!driverLoaded}><Maximize2 size={16} /> Graj w oknie</button></div></div>}
+    {!immersive && <div className="rg-how-to"><div><h2>Hamuj przed. Atakuj po.</h2><p>Przesuwaj palec w lewo lub w prawo po torze. Bolid podąża za ruchem; po puszczeniu palca przestajesz skręcać. Drugim kciukiem możesz jednocześnie hamować lub używać nitro. Czytaj wskazówki i hamuj przed zakrętem, żeby zachować przyczepność. Na prostej złap cień aerodynamiczny rywala i zaatakuj z nitro. Czyste wyprzedzanie i dobre wyjście z zakrętu odnawiają ERS.</p></div><div className="rg-keyboard"><span>NA KOMPUTERZE</span><p><kbd>←</kbd><kbd>→</kbd> skręt <kbd>↓</kbd> hamulec<br /><kbd>Spacja</kbd> nitro <kbd>P</kbd> pauza</p><button onClick={() => start(false)} disabled={!driverLoaded}><Maximize2 size={16} /> Graj w oknie</button></div></div>}
   </section>;
 }
 

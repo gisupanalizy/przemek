@@ -3,7 +3,7 @@ import { OFFROAD_LIMIT, trackAt } from './race-track.ts';
 export const RACE_SECONDS = 90;
 export const FIXED_STEP = 1 / 120;
 
-export type Controls = { left: boolean; right: boolean; brake: boolean; boost: boolean };
+export type Controls = { left: boolean; right: boolean; brake: boolean; boost: boolean; steerTarget?: number };
 export type Rival = { id: number; distance: number; x: number; speed: number; color: string; cooldown: number };
 export type Race = {
   time: number; distance: number; x: number; speed: number; fuel: number;
@@ -63,7 +63,9 @@ export function stepRace(race: Race, input: Controls, delta: number): void {
   const track = trackAt(race.distance);
   race.braking = input.brake;
   const overspeed = track.inCorner ? Math.max(0, race.speed - track.safeSpeed) : 0;
-  const steer = Number(input.right) - Number(input.left);
+  const steer = input.left || input.right ? Number(input.right) - Number(input.left)
+    : input.steerTarget !== undefined && Number.isFinite(input.steerTarget)
+      ? clamp((input.steerTarget - race.x) * 6, -1, 1) : 0;
   race.steering += (steer - race.steering) * Math.min(1, dt * 12);
   // Overdriving a corner consumes grip: steering alone cannot erase excess speed.
   const steeringGrip = track.inCorner ? clamp(1 - overspeed * 0.025, 0.12, 1) : 1;
