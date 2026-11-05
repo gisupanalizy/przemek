@@ -18,7 +18,7 @@ const fakeClock = () => {
   window.requestAnimationFrame = fn => { jobs.set(++id, fn); return id; };
   window.cancelAnimationFrame = key => jobs.delete(key);
   window.__frame = () => { now += 1000 / 120; const batch = [...jobs.values()]; jobs.clear(); batch.forEach(fn => fn(now)); };
-  document.addEventListener('pointerdown', e => { if (e.target.closest('.ta-steer')) window.__pointerId = e.pointerId; });
+  document.addEventListener('pointerdown', e => { if (e.target.closest('.ta-road')) window.__pointerId = e.pointerId; });
 };
 await context.addInitScript(fakeClock);
 const page = await context.newPage(); page.on('pageerror', error => report.errors.push(error.message));
@@ -36,7 +36,7 @@ const state = async () => page.evaluate(`(${telemetry.toString()})()`);
 const driveTo = async ({ stopS = 1265, collect = true, slow = false, origin }) => {
   const { referenceInput } = await import('/time-attack-engine.ts');
   const { SNACK_ITEMS } = await import('/time-attack-snacks.ts');
-  const node = document.querySelector('.ta-steer'), radius = Math.max(36, Math.min(68, node.clientWidth * 0.32));
+  const node = document.querySelector('.ta-road'), radius = Math.max(64, Math.min(96, node.clientWidth * 0.18));
   const section = document.querySelector('.ta');
   let fiber = section[Object.keys(section).find(key => key.startsWith('__reactFiber$'))], race;
   for (; fiber && !race; fiber = fiber.return) for (let hook = fiber.memoizedState; hook; hook = hook.next) {
@@ -60,7 +60,7 @@ const driveTo = async ({ stopS = 1265, collect = true, slow = false, origin }) =
 const cdp = await context.newCDPSession(page);
 const grab = async () => {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }).catch(() => {});
-  const box = await page.locator('.ta-steer').boundingBox(); const origin = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+  const box = await page.locator('.ta-road').boundingBox(); const origin = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] }); return origin;
 };
 try {
@@ -133,7 +133,7 @@ try {
   const bp = await broken.newPage(); bp.on('pageerror', e => report.errors.push(e.message));
   await bp.goto(`${base}/#na-zyletki`); await bp.locator('.ta-mode-toggle input').check(); await bp.getByRole('button', { name: 'Jedź na czas' }).click(); await bp.getByRole('button', { name: 'Rozumiem, jadę' }).click();
   await bp.evaluate(() => { for (let i = 0; i < 370; i++) window.__frame(); }); await bp.waitForTimeout(30);
-  const brokenCdp = await broken.newCDPSession(bp), bb = await bp.locator('.ta-steer').boundingBox();
+  const brokenCdp = await broken.newCDPSession(bp), bb = await bp.locator('.ta-road').boundingBox();
   const bo = { x: Math.round(bb.x + bb.width / 2), y: Math.round(bb.y + bb.height / 2) };
   await brokenCdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...bo }] });
   const br = await bp.evaluate(driveTo, { stopS: 215, origin: bo }); await bp.waitForTimeout(30);

@@ -46,27 +46,35 @@ await page.getByRole('button', { name: 'Jedź na czas' }).click();
 await page.getByRole('button', { name: 'Rozumiem, jadę' }).click();
 check('portrait countdown shows the large face', await page.locator('.ta-driver-countdown img').isVisible());
 await page.screenshot({ path: `${dir}/mobile-countdown.png` });
-await page.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await page.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 check('large face disappears on start and small corner portrait remains', await page.locator('.ta-driver-countdown').count() === 0 && await page.locator('.ta-road-top .ta-driver img').isVisible());
 check('menu preview unmounts during play', await page.locator('.ta-preview').count() === 0);
 await page.screenshot({ path: `${dir}/mobile-racing.png` });
+await page.locator('.ta-ghost-toggle').click();
+check('ghost toggle does not claim the road gesture', await page.locator('.ta-drive-status').evaluate(node => !node.classList.contains('is-held')));
+await page.locator('.ta-ghost-toggle').click();
 const sizes = await page.locator('.ta-controls button').evaluateAll(nodes => nodes.map(node => ({ w: node.clientWidth, h: node.clientHeight })));
 check('thumb controls are at least 48px', sizes.every(size => size.w >= 48 && size.h >= 48));
-const steer = await page.locator('.ta-steer').boundingBox(), brake = await page.locator('.ta-brake').boundingBox();
-const a = { id: 1, x: Math.round(steer.x + steer.width / 2), y: Math.round(steer.y + steer.height / 2) };
+const road = await page.locator('.ta-road').boundingBox(), brake = await page.locator('.ta-brake').boundingBox();
+const a = { id: 1, x: Math.round(road.x + road.width / 2), y: Math.round(road.y + road.height / 2) };
 const b = { id: 2, x: Math.round(brake.x + brake.width / 2), y: Math.round(brake.y + brake.height / 2) };
 const cdp = await context.newCDPSession(page);
 await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
-await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...a, x: a.x + 30 }] });
-await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...a, x: a.x + 30 }, b] });
+await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...a, x: a.x + 40, y: a.y + 50 }] });
 await page.waitForTimeout(150);
-check('native emulated two-finger input combines steering and braking', await page.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')) && await page.locator('.ta-steer').evaluate(node => Number(node.style.getPropertyValue('--steer')) > 0.1));
+check('one-finger road gesture combines steering and braking', await page.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')) && await page.locator('.ta-drive-status').evaluate(node => Number(node.style.getPropertyValue('--steer')) > 0.1));
+await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...a, x: a.x + 40, y: a.y + 20 }] });
+await page.waitForTimeout(120);
+check('lifting the drag releases brake but preserves steering', await page.locator('.ta-drive-status').evaluate(node => node.classList.contains('is-held')) && !await page.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')));
+await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...a, x: a.x + 40, y: a.y + 20 }, b] });
+await page.waitForTimeout(120);
+check('optional brake button works with the road gesture', await page.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')));
 await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [b] });
 await page.waitForTimeout(120);
-check('releasing brake preserves steering finger', await page.locator('.ta-steer').evaluate(node => node.classList.contains('is-held')) && !await page.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')));
+check('releasing optional brake preserves steering finger', await page.locator('.ta-drive-status').evaluate(node => node.classList.contains('is-held')) && !await page.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')));
 await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
 await page.waitForTimeout(180);
-check('touch cancel releases steering', await page.locator('.ta-steer').evaluate(node => !node.classList.contains('is-held') && Math.abs(Number(node.style.getPropertyValue('--steer'))) < 0.1));
+check('touch cancel releases steering', await page.locator('.ta-drive-status').evaluate(node => !node.classList.contains('is-held') && Math.abs(Number(node.style.getPropertyValue('--steer'))) < 0.1));
 check('touch input does not scroll the game', await page.evaluate(() => scrollY === 0 || getComputedStyle(document.body).overflow === 'hidden'));
 await page.setViewportSize({ width: 844, height: 390 });
 await page.getByRole('button', { name: 'Wznów przejazd' }).waitFor();
@@ -80,7 +88,7 @@ const countdownGeometry = await page.locator('.ta-countdown').evaluate(node => {
   return image.right <= number.left && image.top >= 0 && image.bottom <= innerHeight && number.right <= innerWidth;
 });
 check('landscape number is beside the face without overlap or clipping', countdownGeometry);
-await page.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await page.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 await page.screenshot({ path: `${dir}/landscape-racing.png` });
 await page.evaluate(() => {
   window.__taDraws = 0;
@@ -111,7 +119,7 @@ await finishContext.addInitScript(() => {
   window.cancelAnimationFrame = key => callbacks.delete(key);
   window.__frame = () => { now += 1000 / 120; const jobs = [...callbacks.values()]; callbacks.clear(); jobs.forEach(fn => fn(now)); };
   window.__pointerId = null;
-  document.addEventListener('pointerdown', e => { if (e.target.closest('.ta-steer')) window.__pointerId = e.pointerId; });
+  document.addEventListener('pointerdown', e => { if (e.target.closest('.ta-road')) window.__pointerId = e.pointerId; });
 });
 const finishPage = await finishContext.newPage(); finishPage.on('pageerror', error => report.errors.push(error.message));
 await finishPage.goto(`${base}/#na-zyletki`); await finishPage.locator('.ta-primary').first().waitFor();
@@ -142,16 +150,16 @@ const portraitGeometry = await finishPage.locator('.ta-countdown').evaluate(node
 });
 check('portrait number is below the face without overlap or clipping', portraitGeometry);
 await finishPage.evaluate(() => { for (let i = 0; i < 240; i++) window.__frame(); });
-await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await finishPage.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 const finishCDP = await finishContext.newCDPSession(finishPage);
-const box = await finishPage.locator('.ta-steer').boundingBox();
+const box = await finishPage.locator('.ta-road').boundingBox();
 const origin = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] });
 await finishPage.exposeFunction('captureTurn', async () => { await finishPage.screenshot({ path: `${dir}/mobile-corner.png` }); });
 const driveUI = async ({ origin, slow = false, penalized = false }) => {
   const { referenceInput, clamp, yawLimit } = await import('/time-attack-engine.ts');
   const { curvatureAt } = await import('/time-attack-track.ts');
-  const node = document.querySelector('.ta-steer'), radius = Math.max(36, Math.min(68, node.clientWidth * 0.32));
+  const node = document.querySelector('.ta-road'), radius = Math.max(64, Math.min(96, node.clientWidth * 0.18));
   // Test-only telemetry reader. The driver never mutates game state: it sends
   // pointer/keyboard input, while the real animation loop advances the engine.
   const section = document.querySelector('.ta');
@@ -198,7 +206,7 @@ const savedBest = await finishPage.evaluate(key => localStorage.getItem(key), AT
 await finishPage.getByRole('button', { name: 'Jeszcze raz' }).click();
 check('retry retains its one-second countdown and large face', await finishPage.locator('.ta-countdown-copy strong').textContent() === '1' && await finishPage.locator('.ta-driver-countdown img').isVisible());
 await finishPage.evaluate(() => { for (let i = 0; i < 123; i++) window.__frame(); });
-await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await finishPage.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 const retryClock = await finishPage.locator('.ta-clock strong').textContent();
 check('restart resets time and keeps the ghost', retryClock.startsWith('0:00.') && Number(retryClock.slice(5)) < 10 && await finishPage.locator('.ta-delta strong').textContent() !== '—');
 await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
@@ -215,7 +223,7 @@ await finishPage.evaluate(() => { for (let i = 0; i < 240; i++) window.__frame()
 check('menu demo preserves the existing loop record', await finishPage.evaluate(key => localStorage.getItem(key), ATTACK_RECORD_KEY) === reloadedRecord);
 await finishPage.getByRole('button', { name: 'Jedź na czas' }).click();
 await finishPage.evaluate(() => { for (let i = 0; i < 362; i++) window.__frame(); });
-await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await finishPage.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 check('existing loop record and ghost reload after renaming', await finishPage.locator('.ta-delta strong').textContent() !== '—' && await finishPage.locator('.ta-ghost-toggle').getAttribute('aria-pressed') === 'true');
 
 // A fresh test record is earned by four actual exits using controls, without changing race state.
@@ -223,7 +231,7 @@ await finishPage.evaluate(key => localStorage.removeItem(key), ATTACK_RECORD_KEY
 await finishPage.reload();
 await finishPage.getByRole('button', { name: 'Jedź na czas' }).click();
 await finishPage.evaluate(() => { for (let i = 0; i < 362; i++) window.__frame(); });
-await finishPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await finishPage.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
 await finishCDP.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...origin }] });
 const penalized = await finishPage.evaluate(driveUI, { origin, penalized: true });
@@ -258,7 +266,7 @@ await failedContext.route('**/game/driver.png', route => route.abort());
 const failedPage = await failedContext.newPage();
 await failedPage.goto(`${base}/#na-zyletki`); await failedPage.getByRole('button', { name: 'Wczytaj portret' }).waitFor();
 await failedPage.getByRole('button', { name: 'Jedź na czas' }).click(); await failedPage.getByRole('button', { name: 'Rozumiem, jadę' }).click();
-await failedPage.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+await failedPage.waitForFunction(() => !document.querySelector('.ta-stage').inert);
 check('failed driver image does not block countdown or racing', await failedPage.locator('.ta-clock').isVisible());
 await failedContext.close(); await browser.close();
 
@@ -269,9 +277,9 @@ try {
   p.on('pageerror', error => report.errors.push(`WebKit: ${error.message}`));
   await p.goto(`${base}/#na-zyletki`); await p.getByRole('button', { name: 'Jedź na czas' }).waitFor();
   await p.getByRole('button', { name: 'Jedź na czas' }).click(); await p.getByRole('button', { name: 'Rozumiem, jadę' }).click();
-  await p.waitForFunction(() => !document.querySelector('.ta-steer').disabled);
+  await p.waitForFunction(() => !document.querySelector('.ta-stage').inert);
   await p.keyboard.down('ArrowRight'); await p.keyboard.down('s'); await p.waitForTimeout(150);
-  check('WebKit combines steering and brake', await p.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')) && await p.locator('.ta-steer').evaluate(node => Number(node.style.getPropertyValue('--steer')) > 0.1));
+  check('WebKit combines steering and brake', await p.locator('.ta-brake').evaluate(node => node.classList.contains('is-active')) && await p.locator('.ta-drive-status').evaluate(node => Number(node.style.getPropertyValue('--steer')) > 0.1));
   await p.keyboard.up('ArrowRight'); await p.keyboard.up('s');
   await p.screenshot({ path: `${dir}/webkit-racing.png` }); report.webkit = 'Desktop WebKit with mobile viewport passed; not a physical iPhone.';
 } catch (error) { report.webkit = `WebKit unavailable or failed: ${error.message}`; throw error; }

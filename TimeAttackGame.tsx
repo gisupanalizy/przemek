@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, ArrowLeftRight, ArrowRight, Beer, CornerDownLeft, CornerDownRight, Flag, Ghost, Pause, Play, RotateCcw, Timer, Trophy, Utensils } from 'lucide-react';
-import { ATTACK_STEP, attackRecordKey, attackResult, clamp, createAttack, formatTime, ghostTimeAt, MEDALS, medalFor, parseAttackRecord, recordFromRace, stepAttack,
+import { ArrowDown, ArrowLeft, ArrowLeftRight, ArrowRight, Beer, CornerDownLeft, CornerDownRight, Flag, Ghost, Pause, Play, RotateCcw, Timer, Trophy, Utensils } from 'lucide-react';
+import { ATTACK_STEP, attackRecordKey, attackResult, createAttack, formatTime, ghostTimeAt, MEDALS, medalFor, parseAttackRecord, recordFromRace, stepAttack,
   type AttackInput, type AttackRace, type AttackRecord } from './time-attack-engine';
+import { DriveGesture } from './time-attack-gesture';
 import { trackLimitNotice } from './track-limits';
 import { SNACK_BALANCE, SNACK_TOTALS, type AttackMode } from './time-attack-snacks';
 import { nextCorner, TRACK_LENGTH } from './time-attack-track';
@@ -37,19 +38,20 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
   const [newRecord, setNewRecord] = useState(false), [storageFailed, setStorageFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false), [imageAttempt, setImageAttempt] = useState(0);
   const [menuFailed, setMenuFailed] = useState(false);
-  const [steerHeld, setSteerHeld] = useState(false);
-  const steeringPointer = useRef<{ id: number; origin: number; radius: number } | null>(null);
+  const [steerHeld, setSteerHeld] = useState(false), [hasDriven, setHasDriven] = useState(false);
+  const driveGesture = useRef(new DriveGesture());
   const brakePointers = useRef(new Set<number>()), keys = useRef(new Set<string>());
   const immersive = phase !== 'ready';
   const changePhase = useCallback((next: Phase) => { phaseRef.current = next; setPhase(next); }, []);
   const release = useCallback(() => {
-    steeringPointer.current = null; brakePointers.current.clear(); keys.current.clear();
+    driveGesture.current.reset(); brakePointers.current.clear(); keys.current.clear();
     input.current = { steer: 0, brake: false }; setSteerHeld(false);
   }, []);
   const sync = useCallback(() => {
     const keySteer = Number(keys.current.has('ArrowRight') || keys.current.has('d')) - Number(keys.current.has('ArrowLeft') || keys.current.has('a'));
-    if (!steeringPointer.current) input.current.steer = keySteer;
-    input.current.brake = brakePointers.current.size > 0 || keys.current.has('ArrowDown') || keys.current.has('s') || keys.current.has(' ');
+    input.current.steer = driveGesture.current.active ? driveGesture.current.steer : keySteer;
+    input.current.brake = driveGesture.current.brake || brakePointers.current.size > 0
+      || keys.current.has('ArrowDown') || keys.current.has('s') || keys.current.has(' ');
   }, []);
   const pause = useCallback(() => {
     release();
@@ -59,7 +61,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
     release(); countdownRef.current = seconds; setCountdown(seconds); changePhase('countdown');
   }, [release, changePhase]);
   const start = (retry = false) => {
-    release(); race.current = createAttack(mode); setHud(snapshot(race.current)); setNewRecord(false); setStorageFailed(false);
+    release(); race.current = createAttack(mode); setHud(snapshot(race.current)); setNewRecord(false); setStorageFailed(false); setHasDriven(false);
     attemptRecord.current = recordRef.current[mode];
     let seen = false; try { seen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /* Session still works. */ }
     if (!seen && !retry) changePhase('tutorial'); else countIn(retry ? 1 : 3);
@@ -139,18 +141,20 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, [active, immersive, pause, changePhase, finish]);
 
-  const steerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (phaseRef.current !== 'racing' || steeringPointer.current) return;
-    e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId);
-    steeringPointer.current = { id: e.pointerId, origin: e.clientX, radius: Math.max(36, Math.min(68, e.currentTarget.clientWidth * 0.32)) };
-    input.current.steer = 0; setSteerHeld(true);
+  const driveDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (phaseRef.current !== 'racing' || e.button !== 0 || (e.target as Element).closest('button, a, input')) return;
+    if (!driveGesture.current.begin(e.pointerId, e.clientX, e.clientY, e.currentTarget.clientWidth)) return;
+    e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); setSteerHeld(true); sync();
   };
-  const steerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    const pointer = steeringPointer.current;
-    if (pointer?.id === e.pointerId) { e.preventDefault(); input.current.steer = clamp((e.clientX - pointer.origin) / pointer.radius, -1, 1); }
+  const driveMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!driveGesture.current.move(e.pointerId, e.clientX, e.clientY)) return;
+    e.preventDefault();
+    if (!hasDriven && (Math.abs(driveGesture.current.steer) > 0.08 || driveGesture.current.brake)) setHasDriven(true);
+    sync();
   };
-  const steerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (steeringPointer.current?.id === e.pointerId) { steeringPointer.current = null; setSteerHeld(false); sync(); }
+  const driveUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!driveGesture.current.end(e.pointerId)) return;
+    setSteerHeld(false); sync();
   };
   const brakeDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (phaseRef.current !== 'racing') return;
@@ -195,7 +199,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
       <div className="ta-track-info"><svg viewBox="0 0 300 300" role="img" aria-label={`Zamknięta ${TRACK_NAMES.attack}: sześć zakrętów, wspólny start i meta`}><path d={MAP} className="ta-map-shadow" /><path d={MAP} className="ta-map-road" /><path d={MAP} className="ta-map-line" /></svg>
         <div><h2>{TRACK_NAMES.attack}</h2><p>{TRACK_LOCATION}</p><span>START = META · 6 ZAKRĘTÓW · 3 SEKTORY</span></div>
       </div>
-      <div className="ta-brief"><div><ArrowLeftRight size={22} /><p><strong>Lewy kciuk prowadzi.</strong><span>Przeciągaj w lewo i prawo. Puszczenie prostuje kierownicę.</span></p></div><div><Pause size={22} /><p><strong>Prawy wyczuwa moment.</strong><span>Przytrzymaj hamulec przed zakrętem. Gaz działa sam.</span></p></div></div>
+      <div className="ta-brief"><div><ArrowLeftRight size={22} /><p><strong>Jeden kciuk prowadzi.</strong><span>Przeciągaj bezpośrednio po torze: na boki skręcasz, w dół hamujesz.</span></p></div><div><ArrowDown size={22} /><p><strong>Hamulec także pod ręką.</strong><span>Jeśli wolisz, przytrzymaj osobny przycisk. Gaz działa automatycznie.</span></p></div></div>
       {!snacksMode && <div className="ta-medal-targets" aria-label="Czasy medalowe">{(['gold', 'silver', 'bronze'] as const).map(m => <span key={m} className={`ta-medal-${m}`}><Trophy size={16} />{MEDAL_NAMES[m]} <b>{formatTime(MEDALS[m])}</b></span>)}</div>}
       <p className="ta-key-hint">Duch pokazuje tempo czasu jazdy. Na mecie liczy się wynik z karą: dwa pierwsze wyjazdy są bez kary, trzeci to ostrzeżenie, a od czwartego każde dokłada 5 sekund. Wolniejszy wynik nie zastępuje rekordu ani ducha. Na komputerze: ← → lub A D — skręt, ↓ lub Spacja — hamulec, P — pauza.</p>
     </div>}
@@ -214,15 +218,17 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
           {snacks.specjalLeft <= 0 && snacks.digestionLeft <= 0 && <span>{snacks.hunger >= SNACK_BALANCE.critical ? 'GŁÓD · ZWALNIASZ' : snacks.hunger >= SNACK_BALANCE.warning ? 'CZAS NA KEBABA' : `${snacks.specials}/${SNACK_TOTALS.specjal} SPECJALE · ${snacks.kebabs}/${SNACK_TOTALS.kebab} KEBABY`}</span>}
         </div>
       </div>}
-      <div className="ta-road"><canvas className={snacks && snacks.blurLeft > 0 ? 'ta-specjal-blur' : undefined} style={{ '--snack-blur': `${SNACK_BALANCE.blurPixels}px` } as CSSProperties} ref={canvas} role="img" aria-label="Tor widziany z góry. Kieruj lewym kciukiem lub strzałkami, hamuj prawym kciukiem lub strzałką w dół." />
+      <div className={`ta-road ${steerHeld ? 'is-driving' : ''}`} onPointerDown={driveDown} onPointerMove={driveMove} onPointerUp={driveUp} onPointerCancel={driveUp} onLostPointerCapture={driveUp} onContextMenu={e => { if (phaseRef.current === 'racing') e.preventDefault(); }}>
+        <canvas className={snacks && snacks.blurLeft > 0 ? 'ta-specjal-blur' : undefined} style={{ '--snack-blur': `${SNACK_BALANCE.blurPixels}px` } as CSSProperties} ref={canvas} role="img" aria-label="Tor widziany z góry. Przeciągaj po torze na boki, aby skręcać, i w dół, aby hamować. Możesz też użyć przycisku hamulca lub klawiatury." />
         <div className="ta-road-top"><div className="ta-sector-label">SEKTOR {Math.min(3, hud.sectors.length + 1)} / 3 <span>OKRĄŻENIE 1/1 · {Math.min(100, Math.floor(hud.s / TRACK_LENGTH * 100))}%</span></div>{driver()}</div>
         {corner && <div className={`ta-corner ${corner.distance < 32 ? 'is-near' : ''}`}>{corner.curve > 0 ? <CornerDownRight size={22} /> : <CornerDownLeft size={22} />}<div><strong>{corner.distance ? `${Math.round(corner.distance)} m` : 'ZAKRĘT'} <span>{corner.number}/6</span></strong><small>{corner.distance < 32 ? 'DOBIERZ PRĘDKOŚĆ' : 'PRZYGOTUJ WEJŚCIE'}</small></div></div>}
+        {phase === 'racing' && !hasDriven && hud.time < 8 && <div className="ta-drive-hint"><ArrowLeftRight size={17} /><span>NA BOKI: SKRĘT</span><ArrowDown size={17} /><span>W DÓŁ: HAMULEC</span></div>}
         <div className={`ta-event ${hud.event.startsWith('KONTAKT') || hud.offroad ? 'is-warning' : ''}`} role="status" aria-live="polite">{hud.event.startsWith('KONTAKT') || hud.event.startsWith('BRAMKA') ? hud.event : snacks && snacks.messageLeft > 0 ? snacks.message : hud.event}{(!snacks || snacks.messageLeft <= 0) && hud.event.startsWith('SEKTOR') && splitDelta !== null && <b>{deltaText(splitDelta)}</b>}</div>
         <div className="ta-road-bottom"><button className={`ta-ghost-toggle ${showGhost ? 'is-on' : ''}`} onClick={toggleGhost} aria-pressed={showGhost} aria-label={showGhost ? 'Ukryj ducha rekordu' : 'Pokaż ducha rekordu'}><Ghost size={17} />{showGhost ? 'DUCH WŁ.' : 'DUCH WYŁ.'}</button><span>{hud.offroad ? 'WRÓĆ NA ASFALT' : hud.braking ? 'HAMOWANIE' : hud.understeer ? 'ZA SZYBKO · HAMUJ' : 'GAZ AUTO'}<b>{Math.round(hud.groundSpeed * 3.6)}<small> km/h</small></b></span></div>
       </div>
-      <footer className="ta-controls" onContextMenu={e => e.preventDefault()}><button className={`ta-steer ${steerHeld ? 'is-held' : ''}`} disabled={phase !== 'racing'} aria-label="Skręt: przytrzymaj i przeciągaj poziomo" onPointerDown={steerDown} onPointerMove={steerMove} onPointerUp={steerUp} onPointerCancel={steerUp} onLostPointerCapture={steerUp} style={{ '--steer': hud.steering } as CSSProperties}>
-        <span className="ta-steer-rail"><ArrowLeft size={17} /><i /><ArrowRight size={17} /></span><strong>{steerHeld ? 'PROWADZISZ' : 'PRZECIĄGAJ'}</strong><small>LEWY KCIUK</small></button>
-        <button className={`ta-brake ${hud.braking ? 'is-active' : ''}`} disabled={phase !== 'racing'} aria-label="Hamulec: przytrzymaj" onPointerDown={brakeDown} onPointerUp={brakeUp} onPointerCancel={brakeUp} onLostPointerCapture={brakeUp}><span className="ta-brake-mark" /><strong>{hud.braking ? 'HAMUJESZ' : 'HAMULEC'}</strong><small>PRAWY KCIUK</small></button>
+      <footer className="ta-controls" onContextMenu={e => e.preventDefault()}><div className={`ta-drive-status ${steerHeld ? 'is-held' : ''}`} style={{ '--steer': hud.steering } as CSSProperties}>
+        <span className="ta-steer-rail"><ArrowLeft size={17} /><i /><ArrowRight size={17} /></span><strong>{steerHeld ? 'PROWADZISZ' : 'STERUJ NA TORZE'}</strong><small>PRZECIĄGAJ · W DÓŁ HAMUJE</small></div>
+        <button className={`ta-brake ${hud.braking ? 'is-active' : ''}`} disabled={phase !== 'racing'} aria-label="Opcjonalny hamulec: przytrzymaj" onPointerDown={brakeDown} onPointerUp={brakeUp} onPointerCancel={brakeUp} onLostPointerCapture={brakeUp}><span className="ta-brake-mark" /><strong>{hud.braking ? 'HAMUJESZ' : 'HAMULEC'}</strong><small>OPCJONALNY PRZYCISK</small></button>
       </footer>
     </div>
 
@@ -235,7 +241,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
           if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
           else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
         }}>
-          {phase === 'tutorial' && <><ArrowLeftRight size={32} /><h2 id="ta-dialog-title">Wyczuj. Skręć. Popraw.</h2><p><strong>Lewy kciuk:</strong> dotknij dolnej lewej strefy i przeciągaj na boki. Puszczenie prostuje kierownicę.</p><p><strong>Prawy kciuk:</strong> przytrzymaj hamulec przed zakrętem. Po puszczeniu auto samo przyspieszy.</p><p>{snacksMode && <>Zbieraj przedmioty przez najechanie. Specjal przyspiesza i rozmywa tor; kebab usuwa głód, lecz chwilowo spowalnia. </>}Żółte znaczniki zapowiadają zakręty. Przejedź przez wszystkie bramki na asfalcie.</p><p>Wyjazd liczy się, gdy wszystkie cztery opony znajdą się za zewnętrzną krawędzią białej linii. Dwa pierwsze są bez kary, trzeci to ostrzeżenie, a od czwartego każde dokłada 5 sekund do wyniku.</p><button className="ta-primary" onClick={() => { try { localStorage.setItem(TUTORIAL_KEY, 'seen'); } catch { /* Optional persistence. */ } countIn(); }}><Play size={18} /> Rozumiem, jadę</button></>}
+          {phase === 'tutorial' && <><ArrowLeftRight size={32} /><h2 id="ta-dialog-title">Wyczuj. Skręć. Popraw.</h2><p><strong>Jeden kciuk:</strong> dotknij toru i przeciągaj na boki, aby skręcać. Przesuń palec w dół, aby jednocześnie zahamować. Puszczenie prostuje kierownicę i zwalnia hamulec.</p><p><strong>Opcjonalnie:</strong> możesz przytrzymać osobny przycisk hamulca. Po puszczeniu auto samo przyspieszy.</p><p>{snacksMode && <>Zbieraj przedmioty przez najechanie. Specjal przyspiesza i rozmywa tor; kebab usuwa głód, lecz chwilowo spowalnia. </>}Żółte znaczniki zapowiadają zakręty. Przejedź przez wszystkie bramki na asfalcie.</p><p>Wyjazd liczy się, gdy wszystkie cztery opony znajdą się za zewnętrzną krawędzią białej linii. Dwa pierwsze są bez kary, trzeci to ostrzeżenie, a od czwartego każde dokłada 5 sekund do wyniku.</p><button className="ta-primary" onClick={() => { try { localStorage.setItem(TUTORIAL_KEY, 'seen'); } catch { /* Optional persistence. */ } countIn(); }}><Play size={18} /> Rozumiem, jadę</button></>}
           {phase === 'paused' && <><Pause size={30} /><h2 id="ta-dialog-title">Chwila w boksie.</h2><p>Czas stoi. Wróć do swojej linii, kiedy będziesz gotowy.</p><button className="ta-primary" onClick={() => countIn()}><Play size={18} /> Wznów przejazd</button><button className="ta-secondary" onClick={() => start(true)}><RotateCcw size={17} /> Od początku</button></>}
           {phase === 'finished' && <>{driver('large')}<h2 id="ta-dialog-title">{newRecord ? 'To jest Twój rekord.' : 'Jest meta. Jeszcze raz?'}</h2><div className="ta-result-time"><span>WYNIK</span>{formatTime(official)}</div><div className="ta-result-account"><div><span>CZAS JAZDY</span><strong>{formatTime(hud.time)}</strong></div><div><span>KARA</span><strong>+{hud.penalty} s</strong></div><div><span>WYNIK</span><strong>{formatTime(official)}</strong></div></div><p className={medal ? `ta-medal-${medal}` : ''}>{snacksMode ? 'Specjal i kebab · osobny rekord' : medal ? `${MEDAL_NAMES[medal]} · ${TRACK_NAMES.attack}` : `Do brązu: ${Math.max(0, official - MEDALS.bronze).toFixed(2)} s`}{best && <> · {deltaText(official - best.result)} do poprzedniego wyniku</>}</p>
             {snacks && <p className="ta-snack-summary">Specjale: {snacks.specials}/{SNACK_TOTALS.specjal} · Kebaby: {snacks.kebabs}/{SNACK_TOTALS.kebab}</p>}
