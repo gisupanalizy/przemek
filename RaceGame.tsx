@@ -4,6 +4,7 @@ import { createRace, emptyControls, FIXED_STEP, position, RACE_SECONDS, score, s
 import { renderRace } from './race-renderer';
 import { OFFROAD_LIMIT, trackAt } from './race-track';
 import { SwipeSteering } from './race-gesture';
+import { TRACK_LOCATION, TRACK_NAMES } from './track-labels';
 import './race-game.css';
 
 type Phase = 'ready' | 'orient' | 'countdown' | 'racing' | 'paused' | 'finished';
@@ -229,7 +230,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
       <div className="rg-intro-copy">
         <h1>Przemek <span>Racing 3D</span></h1>
         <p>Osiem bolidów. Dziewięćdziesiąt sekund.<br />Ty za kierownicą. Do zobaczenia na podium.</p>
-        <div className="rg-race-details"><span><Flag size={16} /> SPRINT 90 S</span><span><Smartphone size={16} /> GRAJ W POZIOMIE</span></div>
+        <div className="rg-race-details"><span><Flag size={16} /> {TRACK_NAMES.sprint} · {TRACK_LOCATION}</span><span><Smartphone size={16} /> GRAJ W POZIOMIE</span></div>
         <button className="rg-start" onClick={() => start()} disabled={!driverLoaded}><Play size={20} fill="currentColor" />{driverError ? 'Grafika niedostępna' : driverLoaded ? 'Graj' : 'Przygotowanie kokpitu…'}<ArrowRight size={20} /></button>
         <p className="rg-local-record">{record ? <>Twój rekord: <strong>{record.score.toLocaleString('pl-PL')} pkt</strong> · P{record.position}</> : 'Startujesz z P8. Skończ na podium.'}</p>
       </div>
@@ -255,7 +256,7 @@ export default function RaceGame({ active, onImmersiveChange }: { active: boolea
           <div className={`rg-timer ${hud.remaining <= 10 ? 'is-urgent' : ''}`}><span>DO METY</span><strong>{String(Math.floor(hud.remaining / 60)).padStart(2, '0')}:{String(hud.remaining % 60).padStart(2, '0')}</strong></div>
           <div className="rg-points"><span>PUNKTY</span><strong>{hud.score.toLocaleString('pl-PL')}</strong></div>
         </div>
-        <div className="rg-course-label"><span className="rg-live-dot" /> RIVIERA · TOR ARCADE</div>
+        <div className="rg-course-label"><span className="rg-live-dot" /> {TRACK_NAMES.sprint} · {TRACK_LOCATION}</div>
         {immersive && <div className={`rg-corner-cue ${hud.tooFast ? 'is-danger' : hud.nextDistance < 160 ? 'is-braking-zone' : ''}`}>
           {hud.nextDistance < 190 ? <>{hud.nextTurn < 0 ? <ArrowLeft size={25} /> : <ArrowRight size={25} />}<div><strong>{hud.inCorner ? hud.cornerName : `${hud.nextTurn < 0 ? 'LEWY' : 'PRAWY'} ZA ${hud.nextDistance} M`}</strong><span>{hud.tooFast ? 'HAMUJ!' : hud.inCorner ? 'CEL' : 'HAMUJ DO'} {hud.cornerSpeed} KM/H</span></div></> : <><Zap size={22} /><div><strong>PROSTA · ATAKUJ</strong><span>{hud.slipstream ? 'CIEŃ AERO · WYPRZEDZAJ' : 'NITRO NA PROSTEJ'}</span></div></>}
         </div>}

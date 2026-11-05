@@ -4,6 +4,8 @@ import { ATTACK_RECORD_KEY, ATTACK_STEP, clamp, createAttack, formatTime, ghostT
   type AttackInput, type AttackRace, type AttackRecord } from './time-attack-engine';
 import { nextCorner, TRACK_LENGTH } from './time-attack-track';
 import { renderAttack, trackMapPath } from './time-attack-renderer';
+import TimeAttackPreview from './TimeAttackPreview';
+import { TRACK_LOCATION, TRACK_NAMES } from './track-labels';
 import './time-attack.css';
 
 type Phase = 'ready' | 'tutorial' | 'countdown' | 'racing' | 'paused' | 'finished';
@@ -97,7 +99,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
     root.current?.querySelector<HTMLButtonElement>('.ta-dialog button')?.focus();
   }, [active, immersive, phase]);
   useEffect(() => {
-    if (!active || !canvas.current) return;
+    if (!active || !immersive || !canvas.current) return;
     const element = canvas.current, ctx = element.getContext('2d', { alpha: false });
     if (!ctx) return;
     let w = 1, h = 1, frame = 0, last = 0, accumulator = 0, nextHud = 0;
@@ -126,7 +128,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
     };
     frame = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
-  }, [active, pause, changePhase, finish]);
+  }, [active, immersive, pause, changePhase, finish]);
 
   const steerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (phaseRef.current !== 'racing' || steeringPointer.current) return;
@@ -156,22 +158,25 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
   const sectorSplits = hud.sectors.map((t, i) => t - (hud.sectors[i - 1] ?? 0));
   const losses = best ? sectorSplits.map((t, i) => t - (best.sectors[i] - (best.sectors[i - 1] ?? 0))) : [];
   const worst = losses.length === 3 && Math.max(...losses) > 0 ? losses.indexOf(Math.max(...losses)) + 1 : null;
-  const driver = (large = false) => <div className={`ta-driver ${large ? 'ta-driver-large' : ''} ${hud.event.startsWith('KONTAKT') ? 'is-hit' : newRecord ? 'is-record' : ''}`}>
+  const driver = (size: 'small' | 'large' | 'hero' | 'countdown' = 'small') => <div className={`ta-driver ta-driver-${size} ${hud.event.startsWith('KONTAKT') ? 'is-hit' : newRecord ? 'is-record' : ''}`}>
     {!imageFailed ? <img key={imageAttempt} src={DRIVER} alt="Twój portret w czerwonym kombinezonie kierowcy" onError={() => setImageFailed(true)} />
+      : size === 'countdown' ? <span className="ta-portrait-fallback">Portret niedostępny</span>
       : <button onClick={() => { setImageFailed(false); setImageAttempt(n => n + 1); }}>Wczytaj portret</button>}
   </div>;
 
-  return <section ref={root} className={`ta ${immersive ? 'ta-immersive' : ''}`} aria-label="Przemek Racing — jedno okrążenie na czas">
+  return <section ref={root} className={`ta ${immersive ? 'ta-immersive' : ''} ${phase === 'countdown' ? 'ta-counting' : ''}`} aria-label="Przemek Racing — jedno okrążenie na czas">
     {!immersive && <div className="ta-intro">
       <div className="ta-intro-copy"><h1>Przemek <span>Racing</span></h1><p className="ta-lead">Sześć zakrętów. Jedno okrążenie.<br />Każda setna należy do Ciebie.</p>
         <p className="ta-description">Start i meta w tym samym miejscu. Hamuj przed zakrętem, znajdź swoją linię i pokonaj ducha najlepszego okrążenia.</p>
+        <p className="ta-track-name"><strong>{TRACK_NAMES.attack}</strong><span>{TRACK_LOCATION} · 1,265 km</span></p>
         <button className="ta-primary" onClick={() => start()}><Play size={19} fill="currentColor" /> Jedź na czas <ArrowRight size={18} /></button>
         <div className="ta-best">Najlepszy czas na pętli <strong>{record ? formatTime(record.time) : 'Pierwsze okrążenie przed Tobą'}</strong></div>
         <a className="ta-compare" href="#gra">Zagraj w „Przemek Racing 3D” <ArrowRight size={15} /></a>
       </div>
-      <div className="ta-track-poster"><div className="ta-poster-top"><span>RIVIERA / PĘTLA</span><span>1,265 KM</span></div>
-        <svg viewBox="0 0 300 300" role="img" aria-label="Zamknięta pętla Riviera: sześć zakrętów, wspólny start i meta"><path d={MAP} className="ta-map-shadow" /><path d={MAP} className="ta-map-road" /><path d={MAP} className="ta-map-line" /></svg>
-        <div className="ta-poster-bottom">{driver(true)}<div><strong>Twój tor. Twoja twarz.</strong><span>START = META · 1 OKRĄŻENIE</span></div></div>
+      <figure className="ta-hero-driver">{driver('hero')}<figcaption><span>KAMERA KIEROWCY</span><strong>GŁÓWNA ROLA: TY</strong></figcaption></figure>
+      <TimeAttackPreview active={active} />
+      <div className="ta-track-info"><svg viewBox="0 0 300 300" role="img" aria-label={`Zamknięta ${TRACK_NAMES.attack}: sześć zakrętów, wspólny start i meta`}><path d={MAP} className="ta-map-shadow" /><path d={MAP} className="ta-map-road" /><path d={MAP} className="ta-map-line" /></svg>
+        <div><h2>{TRACK_NAMES.attack}</h2><p>{TRACK_LOCATION}</p><span>START = META · 6 ZAKRĘTÓW · 3 SEKTORY</span></div>
       </div>
       <div className="ta-brief"><div><ArrowLeftRight size={22} /><p><strong>Lewy kciuk prowadzi.</strong><span>Przeciągaj w lewo i prawo. Puszczenie prostuje kierownicę.</span></p></div><div><Pause size={22} /><p><strong>Prawy wyczuwa moment.</strong><span>Przytrzymaj hamulec przed zakrętem. Gaz działa sam.</span></p></div></div>
       <div className="ta-medal-targets" aria-label="Czasy medalowe">{(['gold', 'silver', 'bronze'] as const).map(m => <span key={m} className={`ta-medal-${m}`}><Trophy size={16} />{MEDAL_NAMES[m]} <b>{formatTime(MEDALS[m])}</b></span>)}</div>
@@ -196,7 +201,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
     </div>
 
     {immersive && phase !== 'racing' && <div className={`ta-overlay ${phase === 'countdown' ? 'ta-count-in' : ''}`}>
-      {phase === 'countdown' ? <div className="ta-countdown" aria-live="polite"><strong>{countdown}</strong><span>ZNAJDŹ SWOJĄ LINIĘ</span></div>
+      {phase === 'countdown' ? <div className="ta-countdown">{driver('countdown')}<div className="ta-countdown-copy"><strong aria-live="polite" aria-atomic="true">{countdown}</strong><span>ZNAJDŹ SWOJĄ LINIĘ</span></div></div>
         : <div className="ta-dialog" role="dialog" aria-modal="true" aria-labelledby="ta-dialog-title" onKeyDown={e => {
           if (e.key !== 'Tab') return;
           const buttons = e.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]');
@@ -206,7 +211,7 @@ export default function TimeAttackGame({ active, onImmersiveChange }: { active: 
         }}>
           {phase === 'tutorial' && <><ArrowLeftRight size={32} /><h2 id="ta-dialog-title">Wyczuj. Skręć. Popraw.</h2><p><strong>Lewy kciuk:</strong> dotknij dolnej lewej strefy i przeciągaj na boki. Puszczenie prostuje kierownicę.</p><p><strong>Prawy kciuk:</strong> przytrzymaj hamulec przed zakrętem. Po puszczeniu auto samo przyspieszy.</p><p>Żółte znaczniki zapowiadają zakręty. Przejedź przez wszystkie bramki na asfalcie.</p><button className="ta-primary" onClick={() => { try { localStorage.setItem(TUTORIAL_KEY, 'seen'); } catch { /* Optional persistence. */ } countIn(); }}><Play size={18} /> Rozumiem, jadę</button></>}
           {phase === 'paused' && <><Pause size={30} /><h2 id="ta-dialog-title">Chwila w boksie.</h2><p>Czas stoi. Wróć do swojej linii, kiedy będziesz gotowy.</p><button className="ta-primary" onClick={() => countIn()}><Play size={18} /> Wznów przejazd</button><button className="ta-secondary" onClick={() => start(true)}><RotateCcw size={17} /> Od początku</button></>}
-          {phase === 'finished' && <>{driver(true)}<h2 id="ta-dialog-title">{newRecord ? 'To jest Twój rekord.' : 'Jest meta. Jeszcze raz?'}</h2><div className="ta-result-time">{formatTime(hud.time)}</div><p className={medal ? `ta-medal-${medal}` : ''}>{medal ? `${MEDAL_NAMES[medal]} na Rivierze` : `Do brązu: ${Math.max(0, hud.time - MEDALS.bronze).toFixed(2)} s`}{best && <> · {deltaText(hud.time - best.time)} do poprzedniego rekordu</>}</p>
+          {phase === 'finished' && <>{driver('large')}<h2 id="ta-dialog-title">{newRecord ? 'To jest Twój rekord.' : 'Jest meta. Jeszcze raz?'}</h2><div className="ta-result-time">{formatTime(hud.time)}</div><p className={medal ? `ta-medal-${medal}` : ''}>{medal ? `${MEDAL_NAMES[medal]} · ${TRACK_NAMES.attack}` : `Do brązu: ${Math.max(0, hud.time - MEDALS.bronze).toFixed(2)} s`}{best && <> · {deltaText(hud.time - best.time)} do poprzedniego rekordu</>}</p>
             <div className="ta-result-sectors">{sectorSplits.map((time, i) => <div key={i}><span>SEKTOR {i + 1}</span><strong>{formatTime(time)}</strong>{best && <small>{deltaText(losses[i])}</small>}</div>)}</div>
             <p>{worst ? `Najwięcej do odzyskania: sektor ${worst}.` : best ? 'Żaden sektor nie był wolniejszy od poprzedniego rekordu.' : 'Duch tego przejazdu czeka w kolejnej próbie.'} Kontakty: {hud.hits}.</p>
             {storageFailed && <p className="ta-storage-note" role="status">Przeglądarka blokuje zapis. Rekord i duch zostają na czas tej sesji.</p>}
